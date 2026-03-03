@@ -119,8 +119,9 @@ def verify_model(path):
     return vocab_size
 
 if __name__ == '__main__':
-    # Choose model
-    model_name = sys.argv[1] if len(sys.argv) > 1 else "stories260K"
+    # Choose model (skip flags like --q8)
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    model_name = args[0] if args else "stories260K"
     if model_name not in MODELS:
         print(f"Unknown model: {model_name}")
         print(f"Available: {', '.join(MODELS.keys())}")
@@ -153,28 +154,68 @@ if __name__ == '__main__':
     # Step 3: Create disk image
     print(f"\n[Step 3] Prepare disk image")
     model_size = os.path.getsize(cfg["model_file"])
-    # Disk needs to fit: model (at sector 200) + tokenizer (at sector 130000)
     min_disk_mb = max(128, (TOK_SECTOR * 512 + tok_size) // (1024*1024) + 1)
     
     if not os.path.exists(DISK_IMG) or os.path.getsize(DISK_IMG) < min_disk_mb * 1024 * 1024:
         print(f"  Creating {DISK_IMG} ({min_disk_mb}MB)...")
         os.system(f"dd if=/dev/zero of={DISK_IMG} bs=1M count={min_disk_mb} 2>/dev/null")
     
-    # Step 4: Inject model
-    print(f"\n[Step 4] Inject model")
-    inject_file(DISK_IMG, cfg["model_file"], MODEL_SECTOR)
+    # Step 4: Check if --q8 flag is present
+    use_q8 = "--q8" in sys.argv
     
-    # Step 5: Inject tokenizer
-    print(f"\n[Step 5] Inject tokenizer")
+    if use_q8:
+        # Quantize the model to Q8
+        q8_file = cfg["model_file"].replace(".bin", ".q8")
+        if not os.path.exists(q8_file):
+            print(f"\n[Step 4] Quantizing to Q8...")
+            ret = os.system(f'python3 scripts/quantize.py "{cfg["model_file"]}" "{q8_file}"')
+            if ret != 0:
+                print("[!] Quantization failed!")
+                sys.exit(1)
+        else:
+            q8_size = os.path.getsize(q8_file)
+            print(f"\n[Step 4] Q8 model exists: {q8_file} ({q8_size:,} bytes)")
+        
+        # Add Q8 magic marker: 'NNQ8' at bytes 508-511 of first sector
+        # (last 4 bytes of the first 512-byte sector, safe padding area)
+        print(f"\n[Step 5] Inject Q8 model at sector 300")
+        with open(q8_file, 'rb') as f:
+            q8_data = bytearray(f.read())
+        # Pad first sector to 512 bytes if needed, then write magic
+        while len(q8_data) < 512:
+            q8_data.append(0)
+        q8_data[508:512] = b'NNQ8'
+        q8_tmp = q8_file + ".tmp"
+        with open(q8_tmp, 'wb') as f:
+            f.write(q8_data)
+        inject_file(DISK_IMG, q8_tmp, 300)
+        os.remove(q8_tmp)
+        
+        # Also inject float32 at sector 200 as fallback
+        print(f"\n[Step 6] Inject float32 model at sector 200 (fallback)")
+        inject_file(DISK_IMG, cfg["model_file"], MODEL_SECTOR)
+    else:
+        # Float32 only
+        print(f"\n[Step 4] Inject float32 model")
+        inject_file(DISK_IMG, cfg["model_file"], MODEL_SECTOR)
+    
+    # Inject tokenizer
+    print(f"\n[Step {'7' if use_q8 else '5'}] Inject tokenizer")
     inject_file(DISK_IMG, cfg["tok_file"], TOK_SECTOR)
     
-    # Step 6: Inject 32-token GGUF brain
-    print(f"\n[Step 6] Inject 32-token GGUF")
+    # Inject 32-token GGUF brain
+    print(f"\n[Step {'8' if use_q8 else '6'}] Inject 32-token GGUF")
     os.system("python3 scripts/make_gguf.py 2>/dev/null")
 
     print("\n" + "=" * 60)
-    print("  READY! Model injected into disk.img")
+    if use_q8:
+        print("  READY! Q8 quantized model injected into disk.img")
+    else:
+        print("  READY! Float32 model injected into disk.img")
     print("=" * 60)
     print(f"\n  Model:     {cfg['model_file']} at sector {MODEL_SECTOR}")
+    if use_q8:
+        print(f"  Q8 Model:  {q8_file} at sector 300")
     print(f"  Tokenizer: {cfg['tok_file']} at sector {TOK_SECTOR}")
     print(f"\n  Type 'LLAMA' at the NeuralOS prompt to generate!")
+

@@ -31,7 +31,12 @@ run-llama: myos.bin
 	@python3 scripts/prepare_model.py
 	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 512M
 
+# Run with Q8 quantized model (~3.5x compression)
+run-q8: myos.bin
+	@python3 scripts/prepare_model.py --q8
+	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 512M
+
 clean:
 	@rm -f src/*.o myos.bin disk.img
 
-.PHONY: all run run-llama clean
+.PHONY: all run run-llama run-q8 clean

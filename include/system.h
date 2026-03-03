@@ -74,6 +74,14 @@ void rmsnorm(float* o, float* x, float* weight, int size);
 void matmul(float* xout, float* x, float* w, int n, int d);
 void matmul_parallel(float* xout, float* x, float* w, int n, int d, int core_id, int num_cores);
 
+// Q8_0 Quantization
+typedef struct {
+    float scale;       // shared scale for 32 values
+    int8_t qs[32];     // quantized int8 values
+} __attribute__((packed)) Q8Block;  // 36 bytes total
+
+void matmul_q8(float* xout, float* x, void* w_q8, int n, int d);
+
 // 7. Disk Driver
 void read_sectors_ATA_PIO(uint32_t target_address, uint32_t LBA, uint8_t sector_count);
 void read_disk_large(uint32_t target_address, uint32_t start_LBA, uint32_t total_sectors);
@@ -87,6 +95,7 @@ void run_neural_engine(gguf_header_t *brain, const char *prompt);
 
 // 10. Llama2 Transformer Engine
 int llama_load_model(uint32_t disk_start_sector);
+int llama_load_model_q8(uint32_t disk_start_sector);
 int llama_load_tokenizer(uint32_t disk_start_sector, uint32_t size_bytes);
 void llama_generate(int max_tokens);
 void llama_generate_with_prompt(const char *prompt, int max_tokens);

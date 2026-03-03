@@ -54,6 +54,11 @@ static LlamaConfig   g_config;
 static LlamaWeights  g_weights;
 static LlamaState    g_state;
 static int           g_model_loaded = 0;
+static int           g_quantized = 0;    // 0=float32, 1=Q8
+
+// Q8 weight pointers (used when g_quantized=1)
+// These point to Q8Block data; the float* pointers in g_weights are reused as void*
+// We cast them to uint8_t* during matmul_q8 calls
 
 // Simple tokenizer: vocab table loaded from model
 static char**  g_vocab = 0;
@@ -94,6 +99,62 @@ static void map_weights(LlamaWeights *w, LlamaConfig *p, float *ptr, int shared_
     w->wcls = shared_weights ? w->token_embedding_table : ptr;
 }
 
+// Q8 helper: number of Q8 bytes for a tensor of n_elements
+static uint32_t q8_size(uint32_t n_elements) {
+    return ((n_elements + 31) / 32) * 36;  // 36 bytes per block of 32
+}
+
+// Map weight pointers for Q8 model
+// Embedding table and RMS norm weights stay float32 (small, need precision)
+// Big matmul weights (wq,wk,wv,wo,w1,w2,w3,wcls) are Q8
+static void map_weights_q8(LlamaWeights *w, LlamaConfig *p, uint8_t *ptr, int shared_weights) {
+    int head_size = p->dim / p->n_heads;
+    int kv_dim = (p->dim * p->n_kv_heads) / p->n_heads;
+    int n_layers = p->n_layers;
+
+    // Token embedding: float32 (need precision for lookup)
+    w->token_embedding_table = (float*)ptr;
+    ptr += p->vocab_size * p->dim * sizeof(float);
+
+    // RMS norm weights: float32 (small, 1D vectors)
+    w->rms_att_weight = (float*)ptr;
+    ptr += n_layers * p->dim * sizeof(float);
+
+    // QKV weights: Q8 (big matrices)
+    w->wq = (float*)ptr;
+    ptr += n_layers * q8_size(p->dim * (p->n_heads * head_size));
+    w->wk = (float*)ptr;
+    ptr += n_layers * q8_size(p->dim * kv_dim);
+    w->wv = (float*)ptr;
+    ptr += n_layers * q8_size(p->dim * kv_dim);
+    w->wo = (float*)ptr;
+    ptr += n_layers * q8_size((p->n_heads * head_size) * p->dim);
+
+    // FFN RMS norm: float32 (small)
+    w->rms_ffn_weight = (float*)ptr;
+    ptr += n_layers * p->dim * sizeof(float);
+
+    // FFN weights: Q8 (big matrices)
+    w->w1 = (float*)ptr;
+    ptr += n_layers * q8_size(p->dim * p->hidden_dim);
+    w->w2 = (float*)ptr;
+    ptr += n_layers * q8_size(p->hidden_dim * p->dim);
+    w->w3 = (float*)ptr;
+    ptr += n_layers * q8_size(p->dim * p->hidden_dim);
+
+    // Final RMS norm: float32
+    w->rms_final_weight = (float*)ptr;
+    ptr += p->dim * sizeof(float);
+
+    // Classifier: Q8 or shared with embedding
+    if (shared_weights) {
+        w->wcls = w->token_embedding_table;
+    } else {
+        w->wcls = (float*)ptr;
+        // ptr += q8_size(p->vocab_size * p->dim);  // not needed, last tensor
+    }
+}
+
 // ----------------------------------------------------------------------------
 // Allocate RunState buffers
 
@@ -111,6 +172,18 @@ static void alloc_state(LlamaState *s, LlamaConfig *p) {
     s->logits     = (float*)mem_calloc(p->vocab_size, sizeof(float));
     s->key_cache  = (float*)mem_calloc(p->n_layers * p->seq_len * kv_dim, sizeof(float));
     s->value_cache= (float*)mem_calloc(p->n_layers * p->seq_len * kv_dim, sizeof(float));
+}
+
+// ----------------------------------------------------------------------------
+// Q8-aware matmul dispatch
+// For float32: offset is element count. For Q8: offset is q8_size(elements)
+static void do_matmul(float *out, float *in, float *w_ptr, int n, int d, int layer, int tensor_elements) {
+    if (g_quantized) {
+        uint8_t *base = (uint8_t*)w_ptr;
+        matmul_q8(out, in, base + (uint32_t)layer * q8_size(tensor_elements), n, d);
+    } else {
+        matmul(out, in, w_ptr + (uint32_t)layer * tensor_elements, n, d);
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -142,10 +215,10 @@ float* llama_forward(int token, int pos) {
         float *key_cache_row   = s->key_cache   + loff + pos * kv_dim;
         float *value_cache_row = s->value_cache  + loff + pos * kv_dim;
 
-        // QKV matmuls
-        matmul(s->q, s->xb, w->wq + l * dim * dim, dim, dim);
-        matmul(key_cache_row, s->xb, w->wk + l * dim * kv_dim, dim, kv_dim);
-        matmul(value_cache_row, s->xb, w->wv + l * dim * kv_dim, dim, kv_dim);
+        // QKV matmuls (Q8-aware)
+        do_matmul(s->q, s->xb, w->wq, dim, dim, l, dim * dim);
+        do_matmul(key_cache_row, s->xb, w->wk, dim, kv_dim, l, dim * kv_dim);
+        do_matmul(value_cache_row, s->xb, w->wv, dim, kv_dim, l, dim * kv_dim);
 
         // --- RoPE (Rotary Positional Encoding) ---
         for (int i = 0; i < dim; i += 2) {
@@ -195,8 +268,8 @@ float* llama_forward(int token, int pos) {
             }
         }
 
-        // Output projection
-        matmul(s->xb2, s->xb, w->wo + l * dim * dim, dim, dim);
+        // Output projection (Q8-aware)
+        do_matmul(s->xb2, s->xb, w->wo, dim, dim, l, dim * dim);
 
         // Residual connection
         for (int i = 0; i < dim; i++) x[i] += s->xb2[i];
@@ -204,9 +277,9 @@ float* llama_forward(int token, int pos) {
         // --- FFN RMSNorm ---
         rmsnorm(s->xb, x, w->rms_ffn_weight + l * dim, dim);
 
-        // FFN: SwiGLU
-        matmul(s->hb, s->xb, w->w1 + l * dim * hidden_dim, dim, hidden_dim);
-        matmul(s->hb2, s->xb, w->w3 + l * dim * hidden_dim, dim, hidden_dim);
+        // FFN: SwiGLU (Q8-aware)
+        do_matmul(s->hb, s->xb, w->w1, dim, hidden_dim, l, dim * hidden_dim);
+        do_matmul(s->hb2, s->xb, w->w3, dim, hidden_dim, l, dim * hidden_dim);
 
         // SiLU(w1) * w3
         for (int i = 0; i < hidden_dim; i++) {
@@ -216,8 +289,8 @@ float* llama_forward(int token, int pos) {
             s->hb[i] = val;
         }
 
-        // Output of FFN
-        matmul(s->xb, s->hb, w->w2 + l * hidden_dim * dim, hidden_dim, dim);
+        // Output of FFN (Q8-aware)
+        do_matmul(s->xb, s->hb, w->w2, hidden_dim, dim, l, hidden_dim * dim);
 
         // Residual connection
         for (int i = 0; i < dim; i++) x[i] += s->xb[i];
@@ -226,8 +299,12 @@ float* llama_forward(int token, int pos) {
     // Final RMSNorm
     rmsnorm(x, x, w->rms_final_weight, dim);
 
-    // Classifier into logits
-    matmul(s->logits, x, w->wcls, p->dim, p->vocab_size);
+    // Classifier into logits (Q8-aware for non-shared weights)
+    if (g_quantized && w->wcls != w->token_embedding_table) {
+        matmul_q8(s->logits, x, w->wcls, p->dim, p->vocab_size);
+    } else {
+        matmul(s->logits, x, w->wcls, p->dim, p->vocab_size);
+    }
 
     return s->logits;
 }
@@ -342,7 +419,99 @@ int llama_load_model(uint32_t disk_start_sector) {
     print_string("KB\n", 0x0A);
 
     g_model_loaded = 1;
-    print_string("[LLM] Llama2 model ready!\n", 0x0A);
+    g_quantized = 0;
+    print_string("[LLM] Llama2 model ready! (float32)\n", 0x0A);
+    return 1;
+}
+
+// ----------------------------------------------------------------------------
+// Load Q8-quantized model from disk
+// Format: [Config (28 bytes)] [embedding float32] [rms_att float32] [wq Q8] ... 
+
+int llama_load_model_q8(uint32_t disk_start_sector) {
+    print_string("[LLM-Q8] Loading quantized model from disk...\n", 0x0E);
+
+    // Step 1: Read config (same format as float32)
+    void *hdr_buf = mem_alloc(512);
+    read_sectors_ATA_PIO((uint32_t)hdr_buf, disk_start_sector, 1);
+
+    int *config_data = (int*)hdr_buf;
+    g_config.dim        = config_data[0];
+    g_config.hidden_dim = config_data[1];
+    g_config.n_layers   = config_data[2];
+    g_config.n_heads    = config_data[3];
+    g_config.n_kv_heads = config_data[4];
+    int raw_vocab       = config_data[5];
+    g_config.seq_len    = config_data[6];
+
+    int shared_weights = raw_vocab > 0 ? 1 : 0;
+    g_config.vocab_size = abs_int(raw_vocab);
+
+    int head_size = g_config.dim / g_config.n_heads;
+    int kv_dim = (g_config.dim * g_config.n_kv_heads) / g_config.n_heads;
+    int nl = g_config.n_layers;
+    int dim = g_config.dim;
+
+    print_string("[LLM-Q8] Config:\n", 0x0B);
+    print_string("  dim=", 0x0F); print_number(dim, 0x0E);
+    print_string(" hidden=", 0x0F); print_number(g_config.hidden_dim, 0x0E);
+    print_string(" layers=", 0x0F); print_number(nl, 0x0E);
+    print_string(" heads=", 0x0F); print_number(g_config.n_heads, 0x0E);
+    print_string(" vocab=", 0x0F); print_number(g_config.vocab_size, 0x0E);
+    print_string("\n", 0x07);
+
+    // Step 2: Calculate Q8 data size
+    uint32_t data_size = 0;
+    // float32: embedding + rms norms
+    data_size += g_config.vocab_size * dim * 4;          // token_embedding
+    data_size += nl * dim * 4;                            // rms_att_weight
+    data_size += nl * dim * 4;                            // rms_ffn_weight
+    data_size += dim * 4;                                 // rms_final_weight
+    // Q8: big matmul weights
+    data_size += nl * q8_size(dim * (g_config.n_heads * head_size));  // wq
+    data_size += nl * q8_size(dim * kv_dim);                          // wk
+    data_size += nl * q8_size(dim * kv_dim);                          // wv
+    data_size += nl * q8_size((g_config.n_heads * head_size) * dim);  // wo
+    data_size += nl * q8_size(dim * g_config.hidden_dim);             // w1
+    data_size += nl * q8_size(g_config.hidden_dim * dim);             // w2
+    data_size += nl * q8_size(dim * g_config.hidden_dim);             // w3
+    if (!shared_weights) data_size += q8_size(g_config.vocab_size * dim); // wcls
+
+    uint32_t total_bytes = 28 + data_size;
+    uint32_t total_sectors = (total_bytes + 511) / 512;
+
+    print_string("  Q8 data=", 0x0F);
+    print_number(data_size / 1024, 0x0E);
+    print_string("KB sectors=", 0x0F);
+    print_number(total_sectors, 0x0E);
+    print_string("\n", 0x07);
+
+    // Step 3: Allocate and load
+    print_string("[LLM-Q8] Loading Q8 weights from disk...\n", 0x0E);
+    uint8_t *model_data = (uint8_t*)mem_alloc(total_bytes);
+    if (!model_data) {
+        print_string("[LLM-Q8] ERROR: Not enough memory!\n", 0x0C);
+        return 0;
+    }
+    read_disk_large((uint32_t)model_data, disk_start_sector, total_sectors);
+
+    // Step 4: Map Q8 weight pointers
+    uint8_t *weights_start = model_data + 28;
+    map_weights_q8(&g_weights, &g_config, weights_start, shared_weights);
+    print_string("[LLM-Q8] Q8 weights mapped.\n", 0x0A);
+
+    // Step 5: Allocate inference buffers
+    print_string("[LLM-Q8] Allocating inference buffers...\n", 0x0E);
+    alloc_state(&g_state, &g_config);
+
+    uint32_t heap_used = get_heap_usage() - 0x1000000;
+    print_string("[LLM-Q8] Total memory used: ", 0x0A);
+    print_number(heap_used / 1024, 0x0E);
+    print_string("KB\n", 0x0A);
+
+    g_model_loaded = 1;
+    g_quantized = 1;
+    print_string("[LLM-Q8] Llama2 Q8 model ready!\n", 0x0A);
     return 1;
 }
 

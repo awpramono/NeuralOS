@@ -136,3 +136,34 @@ void matmul_parallel(float* xout, float* x, float* w, int n, int d, int core_id,
         xout[i] = val;
     }
 }
+
+// ============================================================================
+// Q8_0 QUANTIZED MATMUL
+// Each Q8Block = { float scale, int8_t qs[32] } = 36 bytes per 32 values
+// Dequantize: float_val = scale * int8_val
+// ============================================================================
+
+// Q8 matmul: xout[i] = sum_j( dequant(w_q8[i,j]) * x[j] )
+// w_q8 points to Q8Block data, organized as d rows of ceil(n/32) blocks each
+void matmul_q8(float* xout, float* x, void* w_q8, int n, int d) {
+    int blocks_per_row = (n + 31) / 32;
+    uint8_t *base = (uint8_t*)w_q8;
+
+    for (int i = 0; i < d; i++) {
+        float val = 0.0f;
+        uint8_t *row = base + (uint32_t)i * blocks_per_row * 36;
+
+        for (int b = 0; b < blocks_per_row; b++) {
+            float scale = *(float*)(row + b * 36);
+            int8_t *qs  = (int8_t*)(row + b * 36 + 4);
+            int j_start = b * 32;
+            int j_end = j_start + 32;
+            if (j_end > n) j_end = n;
+
+            for (int j = j_start; j < j_end; j++) {
+                val += (scale * qs[j - j_start]) * x[j];
+            }
+        }
+        xout[i] = val;
+    }
+}

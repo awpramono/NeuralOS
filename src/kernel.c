@@ -146,22 +146,34 @@ void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
     init_neural_weights();
 
     // Attempt to load Llama2 model from disk
-    // Model: sector 200+, Tokenizer: sector 130000+
-    // These are injected by scripts/prepare_model.py
+    // Q8 model at sector 300 (if present), otherwise float32 at sector 200
+    // Tokenizer at sector 130000
     int has_llama = 0;
     {
-        // Quick check: read first sector and see if it looks like a valid config
         void* probe = mem_alloc(512);
-        read_sectors_ATA_PIO((uint32_t)probe, 200, 1);
-        int *cfg = (int*)probe;
-        // Sanity: dim should be > 0 and < 10000, n_layers > 0 and < 100
-        if (cfg[0] > 0 && cfg[0] < 10000 && cfg[2] > 0 && cfg[2] < 100) {
-            has_llama = llama_load_model(200);
-            if (has_llama) {
-                // Load tokenizer from disk (at sector 130000)
-                // tok512.bin ~16KB for stories260K, tok32000.bin ~500KB for stories15M
-                llama_load_tokenizer(130000, 1024000);  // read up to 1MB
+
+        // Try Q8 model first (sector 300)
+        // Q8 magic marker 'NNQ8' at bytes 508-511 of first sector
+        read_sectors_ATA_PIO((uint32_t)probe, 300, 1);
+        int *q8cfg = (int*)probe;
+        uint8_t *marker = (uint8_t*)probe + 508;
+        if (q8cfg[0] > 0 && q8cfg[0] < 10000 && q8cfg[2] > 0 && q8cfg[2] < 100
+            && marker[0] == 'N' && marker[1] == 'N' && marker[2] == 'Q' && marker[3] == '8') {
+            print_string("[Boot] Q8 quantized model detected!\n", 0x0D);
+            has_llama = llama_load_model_q8(300);
+        }
+
+        // Fallback: try float32 model (sector 200)
+        if (!has_llama) {
+            read_sectors_ATA_PIO((uint32_t)probe, 200, 1);
+            int *cfg = (int*)probe;
+            if (cfg[0] > 0 && cfg[0] < 10000 && cfg[2] > 0 && cfg[2] < 100) {
+                has_llama = llama_load_model(200);
             }
+        }
+
+        if (has_llama) {
+            llama_load_tokenizer(130000, 1024000);
         } else {
             print_string("[Boot] No Llama2 model on disk.\n", 0x08);
             print_string("  Run: python3 scripts/prepare_model.py\n", 0x08);
