@@ -19,18 +19,37 @@ ap_entry:
     mov %ax, %es
     mov %ax, %ss
     
-    # Beritahu Core 0 bahwa Core 1 sudah standby
-    movl $0xCAFEBABE, 0x9000
+    # Read this core's APIC ID from Local APIC register
+    # APIC ID is at 0xFEE00020, bits 24-27
+    mov 0xFEE00020, %eax
+    shr $24, %eax
+    # %eax = APIC ID (1, 2, or 3 for worker cores)
 
-ap_loop:
-    # Tunggu sinyal 0x1 dari Core 0
-    cmpl $0x1, 0x9000
-    jne ap_loop
+    # Set up per-core stack: 0x8000 - APIC_ID * 0x1000
+    # Core 1: stack at 0x7000 (4KB)
+    # Core 2: stack at 0x6000 (4KB)
+    # Core 3: stack at 0x5000 (4KB)
+    mov %eax, %ecx
+    shl $12, %ecx           # ecx = APIC_ID * 4096
+    mov $0x8000, %esp
+    sub %ecx, %esp          # esp = 0x8000 - APIC_ID * 4096
 
-    # Di sini Core 1 secara teknis bisa menjalankan fungsi C, 
-    # namun untuk minimalis, kita beri sinyal DONE (0x2) balik
-    movl $0x2, 0x9000
-    jmp ap_loop
+    # Enable FPU on this core (required for float matmul)
+    mov %cr0, %eax
+    and $0xFFFFFFFB, %eax   # Clear EM (bit 2)
+    or  $0x22, %eax         # Set MP (bit 1) + NE (bit 5)
+    mov %eax, %cr0
+    fninit
+
+    # Atomically increment cores_booted counter at 0x901C
+    lock incl 0x901C
+
+    # Jump to C worker function (address stored at 0x9100 by Core 0)
+    jmp *0x9100
+
+    # Fallback halt
+1:  hlt
+    jmp 1b
 
 trampoline_gdt_ptr:
     .word 23

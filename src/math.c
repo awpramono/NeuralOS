@@ -4,6 +4,9 @@
 volatile int lock = 0;
 
 float exp_float(float x) { 
+    // Clamp input to prevent Taylor series overflow
+    if (x > 20.0f) return 485165195.0f;  // ~e^20
+    if (x < -20.0f) return 0.0f;
     float sum = 1.0f, term = 1.0f; 
     for(int i = 1; i < 20; i++) { term = term * x / i; sum += term; } 
     return sum; 
@@ -28,7 +31,12 @@ float cos_float(float x) {
     return sum; 
 }
 
-float sigmoid(float x) { return 1.0f / (1.0f + exp_float(-x)); }
+float sigmoid(float x) { 
+    // Short-circuit for large values to avoid exp overflow
+    if (x > 15.0f) return 1.0f;
+    if (x < -15.0f) return 0.0f;
+    return 1.0f / (1.0f + exp_float(-x)); 
+}
 float silu(float x) { return x * sigmoid(x); }
 
 void softmax(float *input, int size) { 
@@ -57,19 +65,15 @@ void matmul(float* xout, float* x, float* w, int n, int d) {
     }
 }
 
-// Fungsi ini akan dipanggil oleh masing-masing Core
-void matmul_parallel(float* xout, float* x, float* w, int n, int d, int core_id) {
-    // Core 0 mengerjakan baris 0, 2, 4...
-    // Core 1 mengerjakan baris 1, 3, 5...
-    for (int i = core_id; i < d; i += 2) {
+// N-way parallel matmul: each core computes its assigned rows
+// With 4 cores: Core 0 -> rows 0,4,8,...  Core 1 -> rows 1,5,9,...  etc.
+void matmul_parallel(float* xout, float* x, float* w, int n, int d, int core_id, int num_cores) {
+    for (int i = core_id; i < d; i += num_cores) {
         float val = 0.0f;
         for (int j = 0; j < n; j++) {
             val += w[i * n + j] * x[j];
         }
-        
-        // Spinlock menggunakan Atomic Built-in GCC
-        while (__sync_lock_test_and_set(&lock, 1));
+        // No lock needed: each core writes to unique indices
         xout[i] = val;
-        __sync_lock_release(&lock);
     }
 }

@@ -1,0 +1,11 @@
+# Build artifacts
+*.o
+*.bin
+disk.img
+model.gguf
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/

@@ -17,6 +17,15 @@ void print_char(char c, char color) {
     if (c == '\n') {
         cursor_x = 0;
         cursor_y++;
+    } else if (c == '\b') {
+        // LOGIKA BACKSPACE: Mundurkan kursor, jangan cetak simbol!
+        if (cursor_x > 0) {
+            cursor_x--;
+        } else if (cursor_y > 0) {
+            // Mundur ke baris sebelumnya jika berada di ujung kiri layar
+            cursor_y--;
+            cursor_x = 79;
+        }
     } else {
         video_memory[(cursor_y * 80 + cursor_x) * 2] = c;
         video_memory[(cursor_y * 80 + cursor_x) * 2 + 1] = color;
