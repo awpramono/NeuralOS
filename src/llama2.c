@@ -404,8 +404,65 @@ static char* llama_decode(int prev_token, int token) {
 }
 
 // ----------------------------------------------------------------------------
-// Generate text from a prompt token
-// For bare-metal simplicity: starts with BOS token (1), generates autoregressively
+// Simple byte-level encoder: each ASCII char -> token ID
+// In tok512: tokens 0=<unk>, 1=<s>, 2=</s>, 3-258=single bytes
+// So char 'A'(65) -> token 65+3 = 68
+
+static int encode_byte(char c) {
+    int id = (unsigned char)c + 3;
+    if (id >= g_config.vocab_size) id = 0; // <unk> if out of range
+    return id;
+}
+
+// Simple string length
+static int str_len(const char *s) {
+    int len = 0;
+    while (s[len]) len++;
+    return len;
+}
+
+// XorShift32 RNG for sampling
+static uint32_t rng_state = 12345;
+static uint32_t xorshift32() {
+    rng_state ^= rng_state << 13;
+    rng_state ^= rng_state >> 17;
+    rng_state ^= rng_state << 5;
+    return rng_state;
+}
+
+// Temperature sampling: apply temperature then sample from distribution
+static int sample_temperature(float *logits, int vocab_size, float temperature) {
+    if (temperature <= 0.01f) {
+        return sample_argmax(logits, vocab_size);
+    }
+    // Apply temperature
+    for (int i = 0; i < vocab_size; i++) {
+        logits[i] /= temperature;
+    }
+    // Softmax
+    softmax(logits, vocab_size);
+    
+    // Random sample from distribution
+    float r = (float)(xorshift32() % 10000) / 10000.0f;
+    float cdf = 0.0f;
+    for (int i = 0; i < vocab_size; i++) {
+        cdf += logits[i];
+        if (r < cdf) return i;
+    }
+    return vocab_size - 1;
+}
+
+// ----------------------------------------------------------------------------
+// Clear KV cache (needed between separate generations)
+static void clear_kv_cache() {
+    int kv_dim = (g_config.dim * g_config.n_kv_heads) / g_config.n_heads;
+    int cache_size = g_config.n_layers * g_config.seq_len * kv_dim;
+    memset(g_state.key_cache, 0, cache_size * sizeof(float));
+    memset(g_state.value_cache, 0, cache_size * sizeof(float));
+}
+
+// ----------------------------------------------------------------------------
+// Generate text (no prompt, starts from BOS)
 
 void llama_generate(int max_tokens) {
     if (!g_model_loaded) {
@@ -413,30 +470,87 @@ void llama_generate(int max_tokens) {
         return;
     }
 
+    clear_kv_cache();
     print_string("AI > ", 0x0D);
 
     int token = 1;  // BOS token
     int prev_token = 0;
     int pos = 0;
 
-    for (int step = 0; step < max_tokens && pos < g_config.seq_len; step++) {
-        // Forward pass
+    if (max_tokens > g_config.seq_len) max_tokens = g_config.seq_len;
+
+    for (int step = 0; step < max_tokens; step++) {
         float *logits = llama_forward(token, pos);
+        int next = sample_temperature(logits, g_config.vocab_size, 0.8f);
 
-        // Greedy sampling (argmax)
-        int next = sample_argmax(logits, g_config.vocab_size);
+        if (next == 2) break; // EOS
 
-        // EOS check (token 2 = </s>)
-        if (next == 2) break;
-
-        // Decode and print
-        if (step > 0) {  // Don't print BOS
+        if (step > 0) {
             char *piece = llama_decode(prev_token, next);
             print_string(piece, 0x0F);
         }
 
         prev_token = token;
         token = next;
+        pos++;
+    }
+
+    print_string("\n", 0x07);
+}
+
+// ----------------------------------------------------------------------------
+// Generate text with a user prompt
+// Encodes the prompt as byte-level tokens, feeds them through the model,
+// then continues generating autoregressively.
+
+void llama_generate_with_prompt(const char *prompt, int max_tokens) {
+    if (!g_model_loaded) {
+        print_string("[LLM] Error: model not loaded!\n", 0x0C);
+        return;
+    }
+
+    clear_kv_cache();
+
+    int prompt_len = str_len(prompt);
+    if (max_tokens > g_config.seq_len) max_tokens = g_config.seq_len;
+
+    print_string("AI > ", 0x0D);
+
+    // Phase 1: Process BOS token
+    int token = 1;  // BOS
+    int prev_token = 0;
+    int pos = 0;
+    float *logits = llama_forward(token, pos);
+    prev_token = token;
+    pos++;
+
+    // Phase 2: Feed prompt tokens (don't sample, force the prompt)
+    for (int i = 0; i < prompt_len && pos < max_tokens; i++) {
+        token = encode_byte(prompt[i]);
+        logits = llama_forward(token, pos);
+
+        // Print the prompt character
+        char ch[2] = { prompt[i], '\0' };
+        print_string(ch, 0x0E);  // Yellow = user prompt
+
+        prev_token = token;
+        pos++;
+    }
+
+    print_string(" ", 0x0F);  // Space after prompt
+
+    // Phase 3: Generate continuation (autoregressive)
+    token = sample_temperature(logits, g_config.vocab_size, 0.8f);
+
+    for (int step = 0; step < max_tokens - pos; step++) {
+        if (token == 2) break; // EOS
+
+        char *piece = llama_decode(prev_token, token);
+        print_string(piece, 0x0F);  // White = AI generated
+
+        logits = llama_forward(token, pos);
+        prev_token = token;
+        token = sample_temperature(logits, g_config.vocab_size, 0.8f);
         pos++;
     }
 

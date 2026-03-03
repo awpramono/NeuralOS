@@ -89,6 +89,7 @@ void run_neural_engine(gguf_header_t *brain, const char *prompt);
 int llama_load_model(uint32_t disk_start_sector);
 int llama_load_tokenizer(uint32_t disk_start_sector, uint32_t size_bytes);
 void llama_generate(int max_tokens);
+void llama_generate_with_prompt(const char *prompt, int max_tokens);
 int llama_is_loaded();
 int llama_get_vocab_size();
 

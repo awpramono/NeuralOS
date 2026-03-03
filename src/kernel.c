@@ -38,6 +38,18 @@ static int ci_compare(const char *a, const char *b) {
     return (*a == *b);
 }
 
+// Check if string starts with prefix
+static int starts_with(const char *str, const char *prefix) {
+    while (*prefix) {
+        if (*str == '\0') return 0;
+        char cs = (*str >= 'a' && *str <= 'z') ? *str - 32 : *str;
+        char cp = (*prefix >= 'a' && *prefix <= 'z') ? *prefix - 32 : *prefix;
+        if (cs != cp) return 0;
+        str++; prefix++;
+    }
+    return 1;
+}
+
 // ============================================================================
 // BUILT-IN OS COMMANDS (executed natively, no AI needed)
 // ============================================================================
@@ -189,17 +201,30 @@ void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
         } else if (ci_compare(prompt_buffer, "VER")) {
             cmd_ver();
         } else if (ci_compare(prompt_buffer, "LLAMA")) {
+            // LLAMA with no prompt: generate a random story
             if (has_llama) {
-                print_string("[Generating with Llama2 Transformer...]\n", 0x0D);
-                llama_generate(64);  // Generate up to 64 tokens
+                print_string("[Generating random story...]\n", 0x0D);
+                llama_generate(256);
             } else {
-                print_string("[!] Llama2 model not loaded.\n", 0x0C);
-                print_string("    Run: python3 scripts/prepare_model.py\n", 0x0C);
-                print_string("    Then: make run\n", 0x0C);
+                print_string("[!] Llama2 not loaded. Run: make run-llama\n", 0x0C);
+            }
+        } else if (starts_with(prompt_buffer, "LLAMA ") || starts_with(prompt_buffer, "llama ")) {
+            // LLAMA <prompt>: generate continuation from user prompt  
+            if (has_llama) {
+                const char *prompt_text = prompt_buffer + 6; // skip "LLAMA "
+                print_string("[Continuing from prompt...]\n", 0x0D);
+                llama_generate_with_prompt(prompt_text, 256);
+            } else {
+                print_string("[!] Llama2 not loaded. Run: make run-llama\n", 0x0C);
             }
         } else if (prompt_buffer[0] != '\0') {
-            // Not a built-in command -> send to 32-token AI engine
-            run_neural_engine((gguf_header_t*)0, prompt_buffer); 
+            if (has_llama) {
+                // With Llama2 loaded: use it for any unknown input
+                llama_generate_with_prompt(prompt_buffer, 256);
+            } else {
+                // Fallback: 32-token AI engine
+                run_neural_engine((gguf_header_t*)0, prompt_buffer); 
+            }
         }
     }
 }
