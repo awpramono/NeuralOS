@@ -30,6 +30,7 @@ void kernel_main(uint32_t eax_magic, uint32_t ebx_mboot_ptr) {
                 if (c == '\n') {
                     command_buffer[cmd_index] = '\0';
                     if (string_compare(command_buffer, "ai")) {
+    init_smp();
                         run_neural_engine(global_ai_brain);
                     }
                     cmd_index = 0; print_string("> ", 0x0A);
