@@ -31,3 +31,29 @@ void mem_free(void *ptr) {
 uint32_t get_heap_usage() {
     return heap_current;
 }
+
+void* mem_calloc(uint32_t count, uint32_t size) {
+    uint32_t total = count * size;
+    void* ptr = mem_alloc(total);
+    if (ptr) {
+        // Zero-initialize
+        uint8_t* p = (uint8_t*)ptr;
+        for (uint32_t i = 0; i < total; i++) p[i] = 0;
+    }
+    return ptr;
+}
+
+void* memcpy(void* dest, const void* src, uint32_t n) {
+    uint8_t* d = (uint8_t*)dest;
+    const uint8_t* s = (const uint8_t*)src;
+    for (uint32_t i = 0; i < n; i++) d[i] = s[i];
+    return dest;
+}
+
+void* memset(void* dest, int val, uint32_t n) {
+    uint8_t* d = (uint8_t*)dest;
+    for (uint32_t i = 0; i < n; i++) d[i] = (uint8_t)val;
+    return dest;
+}
+
+int abs_int(int x) { return x < 0 ? -x : x; }

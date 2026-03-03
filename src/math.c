@@ -19,6 +19,32 @@ float sqrt_float(float x) {
     return guess; 
 }
 
+// Natural logarithm using the identity: ln(x) = 2 * arctanh((x-1)/(x+1))
+float log_float(float x) {
+    if (x <= 0.0f) return -100.0f;
+    // Range reduction: x = m * 2^e, ln(x) = ln(m) + e * ln(2)
+    float result = 0.0f;
+    while (x > 2.0f) { x /= 2.7182818f; result += 1.0f; }
+    while (x < 0.5f) { x *= 2.7182818f; result -= 1.0f; }
+    // Series: ln(x) around x=1 using (x-1)/(x+1)
+    float y = (x - 1.0f) / (x + 1.0f);
+    float y2 = y * y;
+    float term = y;
+    float sum = y;
+    for (int i = 1; i < 12; i++) {
+        term *= y2;
+        sum += term / (2 * i + 1);
+    }
+    return result + 2.0f * sum;
+}
+
+// Power function: a^b = exp(b * ln(a))
+float powf_float(float base, float exponent) {
+    if (base <= 0.0f) return 0.0f;
+    return exp_float(exponent * log_float(base));
+}
+
+
 float sin_float(float x) { 
     float sum = x, term = x; 
     for(int i = 1; i <= 7; i++) { term = -term * x * x / ((2 * i) * (2 * i + 1)); sum += term; } 
