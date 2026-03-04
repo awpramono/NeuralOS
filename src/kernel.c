@@ -52,73 +52,9 @@ static int starts_with(const char *str, const char *prefix) {
 
 // ============================================================================
 // BUILT-IN OS COMMANDS (executed natively, no AI needed)
-// ============================================================================
+// Old cmd_* functions removed — Agent handles all commands now
+// See src/agent.c for intent classification and dispatch
 
-static void cmd_help() {
-    print_string("\n", 0x07);
-    print_string("+----------------------------------------------+\n", 0x0B);
-    print_string("|          NeuralOS v3.0 - Command List        |\n", 0x0B);
-    print_string("+----------------------------------------------+\n", 0x0B);
-    print_string("| HELP    - Tampilkan daftar perintah ini      |\n", 0x07);
-    print_string("| INFO    - Informasi sistem                   |\n", 0x07);
-    print_string("| MEM     - Status memori                      |\n", 0x07);
-    print_string("| CLEAR   - Bersihkan layar                    |\n", 0x07);
-    print_string("| VER     - Versi NeuralOS                     |\n", 0x07);
-    print_string("+----------------------------------------------+\n", 0x0B);
-    print_string("| Ketik apapun selain perintah di atas untuk   |\n", 0x0D);
-    print_string("| berbicara dengan AI Engine secara langsung!  |\n", 0x0D);
-    print_string("+----------------------------------------------+\n", 0x0B);
-}
-
-static void cmd_info() {
-    print_string("\n", 0x07);
-    print_string("[System Info]\n", 0x0B);
-    print_string("  OS       : NeuralOS v3.0 (Bare-Metal AI)\n", 0x0F);
-    print_string("  Arch     : x86 (i386), 32-bit Protected Mode\n", 0x0F);
-    print_string("  CPU      : ", 0x0F);
-    print_number(*(volatile uint32_t*)0x9018, 0x0E);
-    print_string(" cores (SMP via APIC IPI)\n", 0x0F);
-    print_string("  RAM      : 512MB (QEMU)\n", 0x0F);
-    print_string("  Heap     : Bump Allocator @ ", 0x0F);
-    print_hex(0x1000000, 0x0E);
-    print_string("\n", 0x07);
-    print_string("  VGA      : 80x25 text mode @ 0xB8000\n", 0x0F);
-    print_string("  Keyboard : PS/2 polling driver\n", 0x0F);
-    print_string("  Disk     : ATA PIO mode\n", 0x0F);
-    print_string("  AI Model : TinyLLM-32tok (GGUF in-memory)\n", 0x0F);
-    print_string("  Math     : FPU + Taylor Series (exp,sin,cos,sqrt)\n", 0x0F);
-}
-
-static void cmd_mem() {
-    print_string("\n", 0x07);
-    print_string("[Memory Status]\n", 0x0B);
-    print_string("  Heap Base     : ", 0x0F);
-    print_hex(0x1000000, 0x0E);
-    print_string("\n", 0x07);
-    print_string("  Heap Current  : ", 0x0F);
-    uint32_t usage = get_heap_usage();
-    print_hex(usage, 0x0E);
-    print_string("\n", 0x07);
-    print_string("  Allocated     : ", 0x0F);
-    print_number(usage - 0x1000000, 0x0E);
-    print_string(" bytes\n", 0x07);
-    print_string("  Total RAM     : 512 MB\n", 0x0F);
-    print_string("  AI Brain      : loaded in RAM\n", 0x0A);
-}
-
-static void cmd_ver() {
-    print_string("\n", 0x07);
-    print_string("  _   _                      _  ___  ____  \n", 0x0D);
-    print_string(" | \\ | | ___ _   _ _ __ __ _| |/ _ \\/ ___| \n", 0x0D);
-    print_string(" |  \\| |/ _ \\ | | | '__/ _` | | | | \\___ \\ \n", 0x0D);
-    print_string(" | |\\  |  __/ |_| | | | (_| | | |_| |___) |\n", 0x0D);
-    print_string(" |_| \\_|\\___|\\__,_|_|  \\__,_|_|\\___/|____/ \n", 0x0D);
-    print_string("\n", 0x07);
-    print_string("  Version 3.0 - Bare-Metal Tiny LLM OS\n", 0x0B);
-    print_string("  Built with: GCC + GNU AS + LD (i386)\n", 0x07);
-    print_string("  AI Engine : 32-token autoregressive LLM\n", 0x07);
-    print_string("  License   : MIT (Educational Purpose)\n", 0x08);
-}
 
 // ============================================================================
 // KERNEL MAIN
@@ -134,12 +70,13 @@ void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
     print_string(" | |\\  |  __/ |_| | | | (_| | | |_| |___) |\n", 0x0D);
     print_string(" |_| \\_|\\___|\\__,_|_|  \\__,_|_|\\___/|____/ \n", 0x0D);
     print_string("\n", 0x07);
-    print_string(" NeuralOS v3.0 - Bare-Metal Tiny LLM OS\n", 0x0B);
-    print_string(" ========================================\n", 0x08);
+    print_string(" NeuralOS v3.5 - Agentic AI Operating System\n", 0x0B);
+    print_string(" ============================================\n", 0x08);
 
     enable_fpu();
     init_heap(0x1000000);
     init_smp();
+    update_status_bar();
 
     // Initialize the simple 32-token AI engine (always available)
     print_string("[Boot] Initializing 32-token AI engine...\n", 0x0E);
@@ -180,9 +117,8 @@ void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
         }
     }
 
-    if (has_llama) {
-        print_string("\n[System] Llama2 Transformer loaded! Type LLAMA to generate.\n", 0x0A);
-    }
+    // Update status bar with loaded model info
+    update_status_bar();
 
     if (has_llama) {
         print_string("\n[System] NeuralOS Agentic Edition — AI Agent Active\n", 0x0A);

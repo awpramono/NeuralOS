@@ -48,6 +48,8 @@ void print_string(const char *str, char color);
 void print_number(uint32_t n, char color);
 void print_hex(uint32_t n, char color);
 int string_compare(const char *str1, const char *str2);
+void update_status_bar();
+void outb_port(uint16_t port, uint8_t val);
 
 // 5. Memory Management
 void init_heap(uint32_t start_addr);
