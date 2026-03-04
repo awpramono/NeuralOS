@@ -183,7 +183,13 @@ void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
     if (has_llama) {
         print_string("\n[System] Llama2 Transformer loaded! Type LLAMA to generate.\n", 0x0A);
     }
-    print_string("[System] Type HELP for commands, or talk to the 32-token AI.\n", 0x0A);
+
+    if (has_llama) {
+        print_string("\n[System] NeuralOS Agentic Edition — AI Agent Active\n", 0x0A);
+        print_string("[System] Talk naturally! I understand intent, not just commands.\n", 0x0E);
+    } else {
+        print_string("[System] Type HELP for commands, or talk to the AI.\n", 0x0A);
+    }
 
     char prompt_buffer[128];
 
@@ -191,52 +197,26 @@ void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
         print_string("\nUSER > ", 0x0A);
         get_input(prompt_buffer, 128);
 
-        // Check for built-in OS commands first
-        if (ci_compare(prompt_buffer, "CLEAR")) {
-            clear_screen();
-            print_string("NeuralOS v3.0 - Screen Cleared\n", 0x0B);
-        } else if (ci_compare(prompt_buffer, "HELP")) {
-            cmd_help();
+        if (prompt_buffer[0] == '\0') continue;
+
+        // Direct override: LLAMA command for raw transformer access
+        if (ci_compare(prompt_buffer, "LLAMA")) {
             if (has_llama) {
-                print_string("| LLAMA   - Generate text with Llama2 Transformer |\n", 0x0D);
-                print_string("+--------------------------------------------------+\n", 0x0B);
-            }
-        } else if (ci_compare(prompt_buffer, "INFO")) {
-            cmd_info();
-            if (has_llama) {
-                print_string("  AI Model : Llama2 Transformer (", 0x0F);
-                print_number(llama_get_vocab_size(), 0x0E);
-                print_string(" tokens)\n", 0x0F);
-            }
-        } else if (ci_compare(prompt_buffer, "MEM")) {
-            cmd_mem();
-        } else if (ci_compare(prompt_buffer, "VER")) {
-            cmd_ver();
-        } else if (ci_compare(prompt_buffer, "LLAMA")) {
-            // LLAMA with no prompt: generate a random story
-            if (has_llama) {
-                print_string("[Generating random story...]\n", 0x0D);
+                print_string("[Direct: Llama2 Transformer]\n", 0x0D);
                 llama_generate(256);
             } else {
-                print_string("[!] Llama2 not loaded. Run: make run-llama\n", 0x0C);
+                print_string("[!] Llama2 not loaded.\n", 0x0C);
             }
         } else if (starts_with(prompt_buffer, "LLAMA ") || starts_with(prompt_buffer, "llama ")) {
-            // LLAMA <prompt>: generate continuation from user prompt  
             if (has_llama) {
-                const char *prompt_text = prompt_buffer + 6; // skip "LLAMA "
-                print_string("[Continuing from prompt...]\n", 0x0D);
-                llama_generate_with_prompt(prompt_text, 256);
+                print_string("[Direct: Llama2 Prompt]\n", 0x0D);
+                llama_generate_with_prompt(prompt_buffer + 6, 256);
             } else {
-                print_string("[!] Llama2 not loaded. Run: make run-llama\n", 0x0C);
+                print_string("[!] Llama2 not loaded.\n", 0x0C);
             }
-        } else if (prompt_buffer[0] != '\0') {
-            if (has_llama) {
-                // With Llama2 loaded: use it for any unknown input
-                llama_generate_with_prompt(prompt_buffer, 256);
-            } else {
-                // Fallback: 32-token AI engine
-                run_neural_engine((gguf_header_t*)0, prompt_buffer); 
-            }
+        } else {
+            // ALL other input goes through Agent AI dispatcher
+            agent_dispatch(prompt_buffer);
         }
     }
 }
