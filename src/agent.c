@@ -9,6 +9,44 @@
 static uint32_t g_query_count = 0;
 static uint32_t g_success_count = 0;
 
+// Disk persistence buffers
+#define AGENT_STATE_LBA 10
+#define AGENT_MAGIC 0x41474E54 // 'AGNT'
+
+typedef struct {
+    uint32_t magic;
+    uint32_t total_queries;
+    uint32_t success_count;
+} AgentDiskState;
+
+static uint32_t agent_disk_buffer[128]; // 512 bytes padding (1 sector)
+
+static void agent_save_state() {
+    AgentDiskState *ds = (AgentDiskState*)agent_disk_buffer;
+    ds->magic = AGENT_MAGIC;
+    ds->total_queries = g_query_count;
+    ds->success_count = g_success_count;
+    write_sectors_ATA_PIO((uint32_t)agent_disk_buffer, AGENT_STATE_LBA, 1);
+}
+
+void agent_init() {
+    read_sectors_ATA_PIO((uint32_t)agent_disk_buffer, AGENT_STATE_LBA, 1);
+    AgentDiskState *ds = (AgentDiskState*)agent_disk_buffer;
+    
+    if (ds->magic == AGENT_MAGIC) {
+        g_query_count = ds->total_queries;
+        g_success_count = ds->success_count;
+        serial_print_string("[AGENT] Persistent Disk loaded! Prev success: ");
+        serial_print_number(g_success_count);
+        serial_print_string("\n");
+    } else {
+        serial_print_string("[AGENT] No previous disk state detected. Formatting sector 10...\n");
+        g_query_count = 0;
+        g_success_count = 0;
+        agent_save_state();
+    }
+}
+
 // ----------------------------------------------------------------------------
 // Intent types — what the user wants the OS to do
 
@@ -417,6 +455,9 @@ void agent_dispatch(const char *input) {
     if (task_success) {
         g_success_count++;
     }
+    
+    // Write state back to raw disk sector 10
+    agent_save_state();
 }
 
 // ----------------------------------------------------------------------------

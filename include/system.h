@@ -86,6 +86,7 @@ void matmul_q8(float* xout, float* x, void* w_q8, int n, int d);
 
 // 7. Disk Driver
 void read_sectors_ATA_PIO(uint32_t target_address, uint32_t LBA, uint8_t sector_count);
+void write_sectors_ATA_PIO(uint32_t source_address, uint32_t LBA, uint8_t sector_count);
 void read_disk_large(uint32_t target_address, uint32_t start_LBA, uint32_t total_sectors);
 
 // 8. SMP
@@ -108,6 +109,7 @@ int llama_get_vocab_size();
 char keyboard_poll_char();
 
 // 12. AI Agent Layer
+void agent_init();
 void agent_dispatch(const char *input);
 void agent_proactive_prompt();
 

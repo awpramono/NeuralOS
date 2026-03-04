@@ -97,6 +97,10 @@ void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
     // Initialize the simple 32-token AI engine (always available)
     print_string("[Boot] Initializing 32-token AI engine...\n", 0x0E);
     init_neural_weights();
+    
+    // Load AI Agent Persistent Disk State
+    print_string("[Boot] Connecting Agent Memory Logger...\n", 0x0E);
+    agent_init();
 
     // Attempt to load Llama2 model from disk
     // Q8 model at sector 300 (if present), otherwise float32 at sector 200

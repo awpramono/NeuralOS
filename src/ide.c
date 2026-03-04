@@ -4,6 +4,7 @@
 static inline void outb(uint16_t port, uint8_t val) { __asm__ volatile("outb %0, %1" : : "a"(val), "Nd"(port)); }
 static inline uint8_t inb(uint16_t port) { uint8_t res; __asm__ volatile("inb %1, %0" : "=a"(res) : "Nd"(port)); return res; }
 static inline uint16_t inw(uint16_t port) { uint16_t res; __asm__ volatile("inw %1, %0" : "=a"(res) : "Nd"(port)); return res; }
+static inline void outw(uint16_t port, uint16_t val) { __asm__ volatile("outw %0, %1" : : "a"(val), "Nd"(port)); }
 
 // Wait for drive to be ready (BSY clear, DRQ set)
 static void ata_wait_ready() {
@@ -34,6 +35,32 @@ void read_sectors_ATA_PIO(uint32_t target_address, uint32_t LBA, uint8_t sector_
     uint16_t *ptr = (uint16_t *)target_address;
     for (uint8_t s = 0; s < sector_count; s++) {
         read_one_sector(ptr + (s * 256), LBA + s);
+    }
+}
+
+// Write a single sector (512 bytes) from RAM to disk
+static void write_one_sector(uint16_t *src, uint32_t LBA) {
+    ata_wait_ready();
+    outb(0x1F6, 0xE0 | ((LBA >> 24) & 0x0F));
+    outb(0x1F2, 1);  // 1 sector
+    outb(0x1F3, (uint8_t)LBA);
+    outb(0x1F4, (uint8_t)(LBA >> 8));
+    outb(0x1F5, (uint8_t)(LBA >> 16));
+    outb(0x1F7, 0x30);  // WRITE SECTORS command
+    ata_wait_drq();
+    for (int i = 0; i < 256; i++) {
+        outw(0x1F0, src[i]); // send 16-bit words
+    }
+    // Flush cache to ensure written
+    outb(0x1F7, 0xE7); 
+    ata_wait_ready();
+}
+
+// Write multiple sectors reliably
+void write_sectors_ATA_PIO(uint32_t source_address, uint32_t LBA, uint8_t sector_count) {
+    uint16_t *ptr = (uint16_t *)source_address;
+    for (uint8_t s = 0; s < sector_count; s++) {
+        write_one_sector(ptr + (s * 256), LBA + s);
     }
 }
 
