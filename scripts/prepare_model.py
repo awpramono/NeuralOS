@@ -28,11 +28,12 @@ MODELS = {
     },
     "stories15M": {
         "model_url":  "https://huggingface.co/karpathy/tinyllamas/resolve/main/stories15M.bin",
-        "tok_url":    "https://huggingface.co/karpathy/tinyllamas/resolve/main/stories260K/tok512.bin",
+        "tok_url":    "https://raw.githubusercontent.com/karpathy/llama2.c/master/tokenizer.bin",
+        "tok_url_alt": "https://huggingface.co/karpathy/tinyllamas/resolve/main/tokenizer.model",
         "model_file": "stories15M.bin",
-        "tok_file":   "tok512.bin",
-        "tok_size":   16000,
-        "description": "15M params, 512 tokens, ~60MB"
+        "tok_file":   "tokenizer.bin",
+        "tok_size":   512000,
+        "description": "15M params, 32000 tokens, ~60MB"
     }
 }
 
@@ -145,8 +146,15 @@ if __name__ == '__main__':
     # Step 2: Download tokenizer
     print(f"\n[Step 2] Download tokenizer")
     if not download_file(cfg["tok_url"], cfg["tok_file"]):
-        print("[!] Cannot continue without tokenizer.")
-        sys.exit(1)
+        # Try alt URL if available
+        if "tok_url_alt" in cfg:
+            print(f"  [*] Trying alternative URL...")
+            if not download_file(cfg["tok_url_alt"], cfg["tok_file"]):
+                print("[!] Cannot continue without tokenizer. Exiting.")
+                sys.exit(1)
+        else:
+            print("[!] Cannot continue without tokenizer. Exiting.")
+            sys.exit(1)
     
     tok_size = os.path.getsize(cfg["tok_file"])
     print(f"  Tokenizer: {tok_size:,} bytes")

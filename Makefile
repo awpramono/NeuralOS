@@ -26,10 +26,20 @@ run: myos.bin
 	@python3 scripts/make_gguf.py
 	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 512M
 
-# Run with Llama2 model (downloads stories15M.bin on first run)
+# Run with Llama2 model (downloads stories260K on first run)
 run-llama: myos.bin
 	@python3 scripts/prepare_model.py
 	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 512M
+
+# Run with stories15M (60MB model, 32000 tokens — much better output!)
+run-15m: myos.bin
+	@python3 scripts/prepare_model.py stories15M
+	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 1G
+
+# Run with stories15M Q8 (~17MB, 3.5x compression)
+run-15m-q8: myos.bin
+	@python3 scripts/prepare_model.py stories15M --q8
+	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 1G
 
 # Run with Q8 quantized model (~3.5x compression)
 run-q8: myos.bin
@@ -39,4 +49,5 @@ run-q8: myos.bin
 clean:
 	@rm -f src/*.o myos.bin disk.img
 
-.PHONY: all run run-llama run-q8 clean
+.PHONY: all run run-llama run-15m run-15m-q8 run-q8 clean
+

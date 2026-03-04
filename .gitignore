@@ -9,3 +9,6 @@ model.gguf
 *.swo
 *~
 .vscode/
+stories15M.bin
+tokenizer.bin
+stories15M.q8
