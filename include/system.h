@@ -48,6 +48,7 @@ void print_string(const char *str, char color);
 void print_number(uint32_t n, char color);
 void print_hex(uint32_t n, char color);
 int string_compare(const char *str1, const char *str2);
+int string_starts_with(const char *str, const char *prefix);
 void update_status_bar();
 void outb_port(uint16_t port, uint8_t val);
 
@@ -121,5 +122,11 @@ void serial_init();
 void serial_print_char(char a);
 void serial_print_string(const char *str);
 void serial_print_number(int num);
+
+// 15. NeuralFS (Basic File System)
+void fs_init();
+int fs_write_file(const char *filename, const uint8_t *data, uint32_t size);
+int fs_read_file(const char *filename, uint8_t **out_data);
+void fs_list_files();
 
 #endif

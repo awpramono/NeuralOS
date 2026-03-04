@@ -52,7 +52,7 @@ static int ci_compare(const char *a, const char *b) {
 }
 
 // Check if string starts with prefix
-static int starts_with(const char *str, const char *prefix) {
+int string_starts_with(const char *str, const char *prefix) {
     while (*prefix) {
         if (*str == '\0') return 0;
         char cs = (*str >= 'a' && *str <= 'z') ? *str - 32 : *str;
@@ -63,13 +63,7 @@ static int starts_with(const char *str, const char *prefix) {
     return 1;
 }
 
-// ============================================================================
-// BUILT-IN OS COMMANDS (executed natively, no AI needed)
-// Old cmd_* functions removed — Agent handles all commands now
-// See src/agent.c for intent classification and dispatch
-
-
-// ============================================================================
+// ----------------------------------------------------------------------------
 // KERNEL MAIN
 // ============================================================================
 
@@ -101,6 +95,10 @@ void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
     // Load AI Agent Persistent Disk State
     print_string("[Boot] Connecting Agent Memory Logger...\n", 0x0E);
     agent_init();
+
+    // Initialize File System
+    print_string("[Boot] Mounting NeuralFS...\n", 0x0E);
+    fs_init();
 
     // Attempt to load Llama2 model from disk
     // Q8 model at sector 300 (if present), otherwise float32 at sector 200
@@ -163,9 +161,9 @@ void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
             } else {
                 print_string("[!] Llama2 not loaded.\n", 0x0C);
             }
-        } else if (starts_with(prompt_buffer, "LLAMA ") || starts_with(prompt_buffer, "llama ")) {
+        } else if (string_starts_with(prompt_buffer, "LLAMA ") || string_starts_with(prompt_buffer, "llama ")) {
             if (has_llama) {
-                print_string("[Direct: Llama2 Prompt]\n", 0x0D);
+                print_string("\n[Llama2 Agent] ", 0x05);
                 llama_generate_with_prompt(prompt_buffer + 6, 256);
             } else {
                 print_string("[!] Llama2 not loaded.\n", 0x0C);

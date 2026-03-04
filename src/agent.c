@@ -61,6 +61,7 @@ typedef enum {
     INTENT_AI_CHAT,         // General conversation
     INTENT_AI_EXPLAIN,      // Explain something
     INTENT_AI_CODE,         // Code/technical question
+    INTENT_SYSTEM_FS,       // NeuralFS file operations (ls, cat, echo)
     INTENT_UNKNOWN          // Couldn't classify
 } IntentType;
 
@@ -139,6 +140,13 @@ static const KeywordRule RULES[] = {
     {"versi",     INTENT_SYSTEM_VER, 90},
     {"ver",       INTENT_SYSTEM_VER, 85},
 
+    // NeuralFS commands
+    {"ls ",       INTENT_SYSTEM_FS,  95},
+    {"cat ",      INTENT_SYSTEM_FS,  95},
+    {"echo ",     INTENT_SYSTEM_FS,  95},
+    {"list disk", INTENT_SYSTEM_FS,  80},
+    {"files",     INTENT_SYSTEM_FS,  80},
+
     // Story/Creative
     {"story",     INTENT_AI_STORY, 90},
     {"cerita",    INTENT_AI_STORY, 90},
@@ -181,8 +189,16 @@ IntentResult classify_intent(const char *input) {
     IntentResult result = { INTENT_AI_CHAT, 30, "default: general chat" };
 
     // Score each intent based on keyword matches
-    int scores[11] = {0};
-    const char *reasons[11] = {0};
+    int scores[12] = {0};
+    const char *reasons[12] = {0};
+
+    // Fast-track exact command prefixes for NeuralFS so it doesn't get confused
+    if (string_starts_with(input, "ls") || string_starts_with(input, "cat ") || string_starts_with(input, "echo ")) {
+        result.type = INTENT_SYSTEM_FS;
+        result.confidence = 100;
+        result.reason = "fs_direct";
+        return result;
+    }
 
     for (int r = 0; r < NUM_RULES; r++) {
         if (contains_ci(input, RULES[r].keyword)) {
@@ -197,7 +213,7 @@ IntentResult classify_intent(const char *input) {
     // Find highest scoring intent
     int best_score = 0;
     IntentType best_intent = INTENT_AI_CHAT;
-    for (int i = 0; i < 11; i++) {
+    for (int i = 0; i < 12; i++) {
         if (scores[i] > best_score) {
             best_score = scores[i];
             best_intent = (IntentType)i;
@@ -351,6 +367,7 @@ void agent_dispatch(const char *input) {
         case INTENT_SYSTEM_HELP: serial_print_string("SYSTEM_HELP"); break;
         case INTENT_SYSTEM_CLEAR:serial_print_string("SYSTEM_CLEAR"); break;
         case INTENT_SYSTEM_VER:  serial_print_string("SYSTEM_VER"); break;
+        case INTENT_SYSTEM_FS:   serial_print_string("SYSTEM_FS"); break;
         case INTENT_AI_STORY:    serial_print_string("AI_STORY"); break;
         case INTENT_AI_CHAT:     serial_print_string("AI_CHAT"); break;
         case INTENT_AI_EXPLAIN:  serial_print_string("AI_EXPLAIN"); break;
@@ -396,10 +413,38 @@ void agent_dispatch(const char *input) {
 
         case INTENT_SYSTEM_VER:
             print_string("AI > ", 0x0D);
-            print_string("NeuralOS v3.5 Agentic Edition\n", 0x0F);
-            print_string("      Kernel : Bare-metal x86 + Llama2 Transformer\n", 0x0F);
-            print_string("      AI     : 264K params, Q8 quantization, 4-core SMP\n", 0x0F);
-            print_string("      Built  : Pure C + x87 ASM, no stdlib\n", 0x0F);
+            print_string("NeuralOS v3.6 Agentic Edition\n", 0x0F);
+            print_string("      Kernel : Bare-metal x86 + NeuralFS\n", 0x0F);
+            print_string("      AI     : Transform Models via KVM, 4-core SMP\n", 0x0F);
+            print_string("      Agent  : Proactive + Ephemeral VM Sandbox\n", 0x0F);
+            break;
+
+        case INTENT_SYSTEM_FS:
+            if (string_starts_with(input, "ls") || string_starts_with(input, "list") || string_starts_with(input, "file")) {
+                fs_list_files();
+            } else if (string_starts_with(input, "cat ")) {
+                const char *filename = input + 4;
+                while (*filename == ' ') filename++;
+                uint8_t *filedata;
+                int size = fs_read_file(filename, &filedata);
+                if (size >= 0) {
+                    print_string("--- ", 0x08);
+                    print_string(filename, 0x0B);
+                    print_string(" ---\n", 0x08);
+                    for (int i=0; i<size; i++) {
+                        print_char(filedata[i], 0x0F);
+                    }
+                    print_string("\n", 0x0F);
+                    mem_free(filedata);
+                } else {
+                    print_string("File tidak ditemukan.\n", 0x0C);
+                    task_success = 0;
+                }
+            } else if (string_starts_with(input, "echo ")) {
+                // simple format: echo "text" > filename
+                // For this demo, let's just make `echo data filename`
+                print_string("Mencatat ke NeuralFS... (not fully implement in shell parsing yet)\n", 0x0E);
+            }
             break;
 
         case INTENT_AI_STORY:
