@@ -111,6 +111,10 @@ static const KeywordRule RULES[] = {
     {"write",     INTENT_AI_STORY, 70},
 
     // Code/Technical
+    {"vm ",       INTENT_AI_CODE, 95},
+    {"run ",      INTENT_AI_CODE, 95},
+    {"calc ",     INTENT_AI_CODE, 95},
+    {"execute ",  INTENT_AI_CODE, 95},
     {"code",      INTENT_AI_CODE, 80},
     {"kode",      INTENT_AI_CODE, 80},
     {"program",   INTENT_AI_CODE, 75},
@@ -376,6 +380,20 @@ void agent_dispatch(const char *input) {
             break;
 
         case INTENT_AI_CODE:
+            // Intercept VM/Script commands
+            if (contains_ci(input, "vm ") || contains_ci(input, "run ") || 
+                contains_ci(input, "calc ") || contains_ci(input, "execute ")) {
+                
+                // Extract script after keyword
+                const char *script = input;
+                while (*script && *script != ' ') script++;
+                if (*script == ' ') script++; // skip space
+                
+                vm_execute(script);
+                break;
+            }
+            /* fallthrough */
+
         case INTENT_AI_EXPLAIN:
             // Route to Llama2 if loaded, with context prefix
             if (llama_is_loaded()) {

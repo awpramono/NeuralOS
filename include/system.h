@@ -111,4 +111,7 @@ char keyboard_poll_char();
 void agent_dispatch(const char *input);
 void agent_proactive_prompt();
 
+// 13. Ephemeral Sandbox
+void vm_execute(const char *script);
+
 #endif

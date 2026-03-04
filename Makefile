@@ -4,7 +4,7 @@ LD = ld
 CFLAGS = -m32 -std=gnu99 -ffreestanding -O2 -Wall -Wextra -Iinclude
 LDFLAGS = -m elf_i386 -T linker.ld
 
-OBJS = src/boot.o src/trampoline.o src/vga.o src/memory.o src/ide.o src/math.o src/smp.o src/keyboard.o src/ai.o src/llama2.o src/agent.o src/kernel.o
+OBJS = src/boot.o src/trampoline.o src/vga.o src/memory.o src/ide.o src/math.o src/smp.o src/keyboard.o src/ai.o src/llama2.o src/agent.o src/vm.o src/kernel.o
 
 all: myos.bin
 
