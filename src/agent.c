@@ -199,17 +199,15 @@ static int firewall_check(const char *input) {
     // Block simulated shell escapes
     if (contains_ci(input, "sudo ") || contains_ci(input, "rm -") || 
         contains_ci(input, "DROP TABLE")) {
-        print_string("AI > ", 0x0D);
-        print_string("[Firewall Block] ", 0x0C);
-        print_string("Request implies destructive behavior. Rejected.\n", 0x0C);
+        serial_print_string("[FIREWALL] Blocked destructive payload: '");
+        serial_print_string(input);
+        serial_print_string("'\n");
         return 0; // Deny
     }
     
     // Block system halt/shutdown attempts by prompt
     if (contains_ci(input, "halt") || contains_ci(input, "shutdown") || contains_ci(input, "reboot")) {
-        print_string("AI > ", 0x0D);
-        print_string("[Firewall Block] ", 0x0E);
-        print_string("Power management commands via voice/prompt disabled.\n", 0x0E);
+        serial_print_string("[FIREWALL] Blocked forbidden power command\n");
         return 0; // Deny
     }
 
@@ -217,9 +215,7 @@ static int firewall_check(const char *input) {
     int len = 0;
     while(input[len] != '\0' && len < 256) len++;
     if (len >= 200) {
-        print_string("AI > ", 0x0D);
-        print_string("[Firewall Block] ", 0x0E);
-        print_string("Prompt too long (exceeds contextual buffer).\n", 0x0E);
+        serial_print_string("[FIREWALL] Blocked extremely long payload (Buffer Overflow Risk)\n");
         return 0; // Deny
     }
 
@@ -300,34 +296,34 @@ void agent_dispatch(const char *input) {
 
     // AI FIREWALL: Inspect before anything else
     if (!firewall_check(input)) {
-        print_string("[Agent System] Task aborted by security policy.\n", 0x08);
+        print_string("AI > [Firewall] Aksi dicegah. Silakan cek log serial.\n", 0x0C);
         return; // Early exit, do not count as success
     }
 
     IntentResult intent = classify_intent(input);
 
-    // Debug: show classification + query number
-    print_string("[Agent #", 0x08);
-    print_number(g_query_count, 0x08);
-    print_string("] Intent: ", 0x08);
+    // Debug: show classification + query number on Serial Port
+    serial_print_string("[AGENT TELEMETRY #");
+    serial_print_number(g_query_count);
+    serial_print_string("] Intent: ");
     switch (intent.type) {
-        case INTENT_SYSTEM_MEM:  print_string("SYSTEM_MEM", 0x08); break;
-        case INTENT_SYSTEM_CPU:  print_string("SYSTEM_CPU", 0x08); break;
-        case INTENT_SYSTEM_INFO: print_string("SYSTEM_INFO", 0x08); break;
-        case INTENT_SYSTEM_HELP: print_string("SYSTEM_HELP", 0x08); break;
-        case INTENT_SYSTEM_CLEAR:print_string("SYSTEM_CLEAR", 0x08); break;
-        case INTENT_SYSTEM_VER:  print_string("SYSTEM_VER", 0x08); break;
-        case INTENT_AI_STORY:    print_string("AI_STORY", 0x08); break;
-        case INTENT_AI_CHAT:     print_string("AI_CHAT", 0x08); break;
-        case INTENT_AI_EXPLAIN:  print_string("AI_EXPLAIN", 0x08); break;
-        case INTENT_AI_CODE:     print_string("AI_CODE", 0x08); break;
-        default:                 print_string("UNKNOWN", 0x08); break;
+        case INTENT_SYSTEM_MEM:  serial_print_string("SYSTEM_MEM"); break;
+        case INTENT_SYSTEM_CPU:  serial_print_string("SYSTEM_CPU"); break;
+        case INTENT_SYSTEM_INFO: serial_print_string("SYSTEM_INFO"); break;
+        case INTENT_SYSTEM_HELP: serial_print_string("SYSTEM_HELP"); break;
+        case INTENT_SYSTEM_CLEAR:serial_print_string("SYSTEM_CLEAR"); break;
+        case INTENT_SYSTEM_VER:  serial_print_string("SYSTEM_VER"); break;
+        case INTENT_AI_STORY:    serial_print_string("AI_STORY"); break;
+        case INTENT_AI_CHAT:     serial_print_string("AI_CHAT"); break;
+        case INTENT_AI_EXPLAIN:  serial_print_string("AI_EXPLAIN"); break;
+        case INTENT_AI_CODE:     serial_print_string("AI_CODE"); break;
+        default:                 serial_print_string("UNKNOWN"); break;
     }
-    print_string(" (", 0x08);
-    print_number(intent.confidence, 0x08);
-    print_string("%) matched: ", 0x08);
-    if (intent.reason) print_string(intent.reason, 0x08);
-    print_string("\n", 0x08);
+    serial_print_string(" (");
+    serial_print_number(intent.confidence);
+    serial_print_string("%) matched: ");
+    if (intent.reason) serial_print_string(intent.reason);
+    serial_print_string("\n");
 
     // Track state (default everything success unless explicitly failed)
     int task_success = 1;
@@ -370,7 +366,7 @@ void agent_dispatch(const char *input) {
 
         case INTENT_AI_STORY:
             if (llama_is_loaded()) {
-                print_string("[Agent -> Llama2 Creative Engine]\n", 0x0D);
+                serial_print_string("[ROUTER] Dispatching to: Llama2 Creative Engine\n");
                 llama_generate_with_prompt(input, 256);
             } else {
                 print_string("AI > ", 0x0D);
@@ -397,7 +393,7 @@ void agent_dispatch(const char *input) {
         case INTENT_AI_EXPLAIN:
             // Route to Llama2 if loaded, with context prefix
             if (llama_is_loaded()) {
-                print_string("[Agent -> Llama2 Analytical Engine]\n", 0x0D);
+                serial_print_string("[ROUTER] Dispatching to: Llama2 Analytical Engine\n");
                 llama_generate_with_prompt(input, 256);
             } else {
                 run_neural_engine((gguf_header_t*)0, input);
@@ -408,8 +404,10 @@ void agent_dispatch(const char *input) {
         default:
             // General chat: use Llama2 if loaded, else 32-token engine
             if (llama_is_loaded()) {
+                serial_print_string("[ROUTER] Dispatching to: Llama2 Transformer\n");
                 llama_generate_with_prompt(input, 256);
             } else {
+                serial_print_string("[ROUTER] Dispatching to: Fast 32-Token AI\n");
                 run_neural_engine((gguf_header_t*)0, input);
             }
             break;

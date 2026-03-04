@@ -15,7 +15,7 @@ static void vm_push(int val) {
     if (vm_sp < VM_STACK_SIZE) {
         vm_stack[vm_sp++] = val;
     } else {
-        print_string("[VM Error] Stack overflow\n", 0x0C);
+        serial_print_string("[VM Error] Stack overflow\n");
     }
 }
 
@@ -23,7 +23,7 @@ static int vm_pop() {
     if (vm_sp > 0) {
         return vm_stack[--vm_sp];
     } else {
-        print_string("[VM Error] Stack underflow\n", 0x0C);
+        serial_print_string("[VM Error] Stack underflow\n");
         return 0;
     }
 }
@@ -59,7 +59,9 @@ static int parse_int(const char *str, int *out_val) {
 
 // Executes an ephemeral script (space-separated tokens)
 void vm_execute(const char *script) {
-    print_string("[Sandbox] Assembling & Executing Ephemeral Core...\n", 0x0D);
+    serial_print_string("[SANDBOX] Assembling & Executing Ephemeral Core for: ");
+    serial_print_string(script);
+    serial_print_string("\n");
     vm_sp = 0; // Reset stack
     
     char token[32];
@@ -91,7 +93,7 @@ void vm_execute(const char *script) {
             int b = vm_pop(); int a = vm_pop(); vm_push(a * b);
         } else if (vm_streq_ci(token, "/") || vm_streq_ci(token, "DIV")) {
             int b = vm_pop(); 
-            if (b == 0) { print_string("[VM Error] Divide by zero\n", 0x0C); vm_push(0); }
+            if (b == 0) { serial_print_string("[VM Error] Divide by zero\n"); vm_push(0); }
             else { int a = vm_pop(); vm_push(a / b); }
         } else if (vm_streq_ci(token, "DUP")) {
             if (vm_sp > 0) vm_push(vm_stack[vm_sp - 1]);
@@ -108,15 +110,15 @@ void vm_execute(const char *script) {
             print_number(a, 0x0F);
             print_string("\n", 0x0A);
         } else {
-            print_string("[VM Error] Unknown instruction: ", 0x0C);
-            print_string(token, 0x0C);
-            print_string("\n", 0x0C);
+            serial_print_string("[VM Error] Unknown instruction: ");
+            serial_print_string(token);
+            serial_print_string("\n");
             break;
         }
         ops_executed++;
     }
     
-    print_string("[Sandbox] Execution terminated. Operations: ", 0x08);
-    print_number(ops_executed, 0x08);
-    print_string("\n", 0x08);
+    serial_print_string("[SANDBOX] Execution terminated. Operations: ");
+    serial_print_number(ops_executed);
+    serial_print_string("\n");
 }

@@ -76,6 +76,9 @@ static int starts_with(const char *str, const char *prefix) {
 void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
     (void)magic; (void)ebx_mboot_ptr;
     
+    // Bring up COM1 Serial Telemetry first
+    serial_init();
+    
     clear_screen();
     print_string("  _   _                      _  ___  ____  \n", 0x0D);
     print_string(" | \\ | | ___ _   _ _ __ __ _| |/ _ \\/ ___| \n", 0x0D);
