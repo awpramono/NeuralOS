@@ -1,131 +1,145 @@
-# 🧠 NeuralOS v3.0 — Bare-Metal Tiny LLM Operating System
+# 🧠 NeuralOS v3.5 — Agentic AI Operating System
 
-NeuralOS is a micro operating system built from scratch in C and x86 Assembly that runs a **Tiny Language Model (LLM) directly on bare metal** — no Linux kernel, no standard C library, no modern software stack. The neural network inference engine runs natively using custom math functions and true multi-core parallel computation.
+**NeuralOS** is a micro operating system built from scratch that runs a **real Llama2 Transformer and AI Agent directly on bare metal** — no Linux, no libc, no modern software stack. It features intent-driven natural language processing, Q8 quantized inference, 4-core SMP parallel computation, and an AI Agent kernel that understands what you *mean*, not just what you type.
 
-## 🚀 Key Features
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ NeuralOS v3.5 Agentic | Cores:4 | Mem:1693KB | AI:Llama2           Agent ON     │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│  _   _                      _  ___  ____                                        │
+│ | \ | | ___ _   _ _ __ __ _| |/ _ \/ ___|                                       │
+│ |  \| |/ _ \ | | | '__/ _` | | | | \___ \                                       │
+│ | |\  |  __/ |_| | | | (_| | | |_| |___) |                                      │
+│ |_| \_|\___|\__,_|_|  \__,_|_|\___/|____/                                       │
+│                                                                                  │
+│ NeuralOS v3.5 - Agentic AI Operating System                                     │
+│                                                                                  │
+│ USER > berapa memory yang tersedia?                                              │
+│ [Agent] Intent: SYSTEM_MEM (90%)                                                │
+│ AI > [System Analysis] Memory Report:                                           │
+│       Total RAM    : 512 MB                                                      │
+│       Heap used    : 1693 KB                                                     │
+│       AI Model RAM : ~1593 KB                                                    │
+│                                                                                  │
+│ USER > tell me a story about a brave cat                                         │
+│ [Agent → Llama2 Creative Engine]                                                │
+│ AI > Once upon a time, there was a little cat named Lily. She loved...           │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
 
-### Operating System
-- **Custom 32-bit Kernel** — Bootable via Multiboot/QEMU, written in C + x86 Assembly
-- **4-Core SMP** — Wakes up all CPU cores via APIC IPI, each with its own stack and FPU
-- **Dynamic Memory Manager** — Bump allocator for heap management at 16MB+
-- **VGA Text Driver** — Direct writes to physical address `0xB8000`
-- **PS/2 Keyboard Driver** — Polling-based keyboard input with backspace support
-- **ATA PIO Disk Driver** — Read sectors from virtual hard drive
-- **Interactive Shell** — Built-in commands: `HELP`, `INFO`, `MEM`, `VER`, `CLEAR`
+## 🚀 Features
 
-### AI / Neural Network
-- **32-Token Vocabulary** — Covers system terms, greetings, and conversational tokens
-- **2-Layer Neural Network** — Embedding matrix (32×32) + Projection matrix (32×32)
-- **Full Inference Pipeline** — `Embedding → RMSNorm → MatMul → SiLU → Softmax → Argmax`
-- **Parallel MatMul** — Matrix multiplication split across all available CPU cores
-- **GGUF Format Support** — Parses GGUF model headers from disk
-- **Bare-Metal Math** — Taylor series implementations of `exp`, `sqrt`, `sin`, `cos`, `sigmoid`, `silu`
+### 🧠 AI Stack (Kernel-Level)
+| Feature | Description |
+|---------|-------------|
+| **Llama2 Transformer** | Full port of Karpathy's llama2.c — RMSNorm, RoPE, GQA, SwiGLU FFN, KV Cache |
+| **AI Agent** | Intent classifier with 50+ keyword rules, routes to correct engine |
+| **Q8 Quantization** | 3.5x compression, dequantize-on-the-fly matmul |
+| **Temperature Sampling** | XorShift32 RNG for text variety |
+| **Prompt Support** | User types text → model continues with context |
+| **x87 FPU Math** | Hardware FSIN/FCOS/F2XM1/FSQRT — 80-bit precision |
+| **32-Token Fast Engine** | GGUF-based simple AI for system queries |
 
-### Multi-Core Architecture
+### 💻 Operating System
+| Feature | Description |
+|---------|-------------|
+| **4-Core SMP** | APIC IPI wake, per-core stacks, parallel matmul |
+| **VGA Scrolling** | Line-by-line scroll, hardware cursor, persistent status bar |
+| **Status Bar** | Real-time display: cores, memory, AI model, agent status |
+| **PS/2 Keyboard** | Polling driver with backspace support |
+| **ATA PIO Disk** | Multi-sector reads, progress reporting for large files |
+| **Bump Allocator** | Heap at 16MB, supports calloc/memcpy/memset |
+
+### 🏗️ Architecture
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│               NeuralOS v3.0 — 4-Core AI Inference            │
-├──────────────────────────────────────────────────────────────┤
-│  Core 0 (BSP)  │  Kernel, Shell, AI Coordinator              │
-│  Core 1 (AP)   │  Worker: matmul rows 1, 5, 9, 13, ...      │
-│  Core 2 (AP)   │  Worker: matmul rows 2, 6, 10, 14, ...     │
-│  Core 3 (AP)   │  Worker: matmul rows 3, 7, 11, 15, ...     │
-├──────────────────────────────────────────────────────────────┤
-│  Sync: SMP Mailbox @ 0x9000 | Atomic counters | 2-phase     │
-└──────────────────────────────────────────────────────────────┘
+│                     USER INPUT                                │
+│          "berapa memory?" / "tell me a story"                │
+└───────────────────────┬──────────────────────────────────────┘
+                        ▼
+┌──────────────────────────────────────────────────────────────┐
+│              AI AGENT (Intent Classifier)                     │
+│  50+ keyword rules, multi-signal scoring, bilingual          │
+│  → SYSTEM_MEM / SYSTEM_CPU / AI_STORY / AI_CHAT / ...       │
+└──────────┬────────────┬──────────────┬───────────────────────┘
+           ▼            ▼              ▼
+    ┌──────────┐  ┌──────────┐  ┌──────────────┐
+    │ Kernel   │  │ 32-Token │  │ Llama2       │
+    │ Reports  │  │ Engine   │  │ Transformer  │
+    │ (live)   │  │ (fast)   │  │ (creative)   │
+    └──────────┘  └──────────┘  └──────────────┘
+                                       │
+                        ┌──────────────┤
+                        ▼              ▼
+                  ┌──────────┐  ┌──────────────┐
+                  │ x87 FPU  │  │ 4-Core SMP   │
+                  │ Hardware │  │ Parallel     │
+                  │ Math     │  │ MatMul       │
+                  └──────────┘  └──────────────┘
 ```
 
 ## 📟 Quick Start
 
 ### Prerequisites
-- Linux or WSL (Windows Subsystem for Linux)
-- `gcc`, `as`, `ld` (GNU toolchain, 32-bit support)
-- `qemu-system-i386`
-- `python3`
+```bash
+# Ubuntu / WSL
+sudo apt install gcc binutils qemu-system-x86 python3 nasm
+sudo apt install gcc-multilib   # for 32-bit support
+```
 
 ### Build & Run
+
 ```bash
-# Compile and launch in QEMU (4 cores, 512MB RAM)
+# Simple build + run (32-token AI only)
 make run
 
-# Or build only
+# With Llama2 Transformer (downloads stories260K on first run)
+make run-llama
+
+# With Q8 quantized model (3.5x compression)
+make run-q8
+
+# Build only
 make
 
-# Clean build artifacts
+# Clean
 make clean
 ```
 
-### Try These Commands
-| Input | Response |
-|-------|----------|
-| `HELP` | Shows all OS commands |
-| `INFO` | Displays system info (cores, RAM, etc.) |
-| `MEM` | Shows heap memory status |
-| `VER` | ASCII art version banner |
-| `CLEAR` | Clears the screen |
-| `HELLO` | AI: *"Halo! Saya adalah NeuralOS, asisten AI Anda."* |
-| `TELL ME ABOUT AI` | AI: *"Saya adalah NeuralOS, asisten AI Anda."* |
-| `CPU` | AI: *"CPU: 4-core aktif."* |
-| `How much RAM?` | AI: *"Sistem memori: 512MB RAM tersedia."* |
-| `?` | AI: *"Perintah: HELP INFO MEM CLEAR AI."* |
+### Try These Inputs
 
-## 🛠️ Architecture
+**Natural Language (AI Agent understands intent):**
+| Input | Intent | Response |
+|-------|--------|----------|
+| `berapa memory yang tersedia?` | SYSTEM_MEM | Live memory analysis report |
+| `ada berapa core processor?` | SYSTEM_CPU | CPU info with SMP details |
+| `bersihkan layar` | SYSTEM_CLEAR | Clears screen |
+| `apa saja yang bisa dilakukan?` | SYSTEM_HELP | Feature list |
+| `version` | SYSTEM_VER | Version info |
+| `tell me a story about a dog` | AI_STORY | Llama2 generates a story |
+| `ceritakan dongeng` | AI_STORY | Llama2 creative engine |
+| `LLAMA` | Direct | Raw Llama2 random generation |
 
-### Module Overview
+## 🛠️ Module Overview
+
 | File | Description |
 |------|-------------|
-| `src/boot.s` | Multiboot entry point, stack setup, jump to C kernel |
-| `src/trampoline.s` | AP (Application Processor) startup: per-core stack, FPU, APIC ID detection |
-| `src/kernel.c` | Main kernel: shell, built-in commands, boot sequence |
-| `src/ai.c` | LLM inference engine: vocabulary, weight init, autoregressive generation |
-| `src/math.c` | Bare-metal math: exp, sqrt, sin, cos, sigmoid, silu, softmax, rmsnorm, matmul |
-| `src/smp.c` | SMP initialization: APIC IPI, worker function, mailbox protocol |
-| `src/memory.c` | Heap allocator (bump allocator) |
-| `src/vga.c` | VGA text mode driver |
+| `src/boot.s` | Multiboot entry, stack setup, jump to C kernel |
+| `src/trampoline.s` | AP startup: per-core stack, FPU, APIC ID |
+| `src/kernel.c` | Main kernel: boot sequence, LLAMA direct command |
+| **`src/agent.c`** | **AI Agent: intent classifier, command dispatcher** |
+| **`src/llama2.c`** | **Llama2 transformer engine (full forward pass)** |
+| `src/ai.c` | 32-token fast AI engine (GGUF) |
+| `src/math.c` | x87 FPU math + Q8 matmul |
+| `src/smp.c` | 4-core SMP initialization via APIC IPI |
+| `src/memory.c` | Heap allocator (bump + calloc + memcpy) |
+| `src/vga.c` | VGA driver with scrolling + status bar |
 | `src/keyboard.c` | PS/2 keyboard polling driver |
-| `src/ide.c` | ATA PIO disk read driver |
-| `include/system.h` | System-wide type definitions, struct declarations, function prototypes |
-| `scripts/make_gguf.py` | Generates GGUF model file with verified transition weights |
-| `linker.ld` | Linker script: kernel loaded at 1MB |
-
-### Neural Network Inference Flow
-```
-User Input: "HELLO"
-    │
-    ▼
-┌─────────────────┐
-│ Input Classifier │ ── Keyword matching → Starting token (0 = "Halo!")
-└────────┬────────┘
-         │
-    ┌────▼────┐
-    │ Embed   │ ── state = E[token, :] (32-dim vector from 32×32 matrix)
-    │ Lookup  │
-    └────┬────┘
-         │
-    ┌────▼────┐
-    │ RMSNorm │ ── Normalize state vector (custom sqrt via Newton's method)
-    └────┬────┘
-         │
-    ┌────▼─────────┐
-    │ Parallel     │ ── logits = P × state (split across 4 CPU cores)
-    │ MatMul (SMP) │    Core 0: rows 0,4,8,...  Core 1: rows 1,5,9,...
-    └────┬─────────┘    Core 2: rows 2,6,10,... Core 3: rows 3,7,11,...
-         │
-    ┌────▼────┐
-    │  SiLU   │ ── x × σ(x), using Taylor series exp()
-    └────┬────┘
-         │
-    ┌────▼────┐
-    │ Softmax │ ── Probability distribution over 32 tokens
-    └────┬────┘
-         │
-    ┌────▼────┐
-    │ Argmax  │ ── Pick highest probability → next token
-    └────┬────┘
-         │
-         ▼
-    Print token, repeat until [END]
-```
+| `src/ide.c` | ATA PIO disk driver (multi-sector) |
+| `include/system.h` | All type defs and function prototypes |
+| `scripts/prepare_model.py` | Download + inject model into disk.img |
+| `scripts/quantize.py` | Float32 → Q8 quantizer (pure Python) |
+| `scripts/make_gguf.py` | Generate 32-token GGUF brain |
 
 ## 📊 Technical Specifications
 
@@ -135,27 +149,60 @@ User Input: "HELLO"
 | Boot Protocol | Multiboot 1 |
 | RAM | 512MB (configurable) |
 | CPU Cores | 4 (configurable via `-smp N`) |
-| VGA | 80×25 text mode |
-| Disk | ATA PIO, 64MB disk image |
-| Heap Start | 0x1000000 (16MB) |
-| AI Vocab Size | 32 tokens |
-| AI Dimensions | 32×32 embed + 32×32 projection |
-| AI Parameters | 2,048 floats (8KB) |
-| Math Precision | 32-bit float (x87 FPU) |
+| VGA | 80×25 text mode with scrolling |
+| Disk | ATA PIO, 128MB disk image |
+| Heap Start | `0x1000000` (16MB) |
+| **Llama2 Model** | **stories260K: 264K params, 5 layers, 8 heads** |
+| **Quantization** | **Q8_0: 36 bytes per 32 weights (3.5x compression)** |
+| **Math Backend** | **x87 FPU: FSIN, FCOS, F2XM1, FSQRT, FYL2X** |
+| **AI Agent** | **50+ keyword rules, bilingual (EN/ID)** |
+| 32-Token AI | 2,048 float params (8KB GGUF) |
 | SMP Protocol | Local APIC, INIT+SIPI IPI |
 
-## 🔮 Roadmap
+## 🔮 Evolution Roadmap
 
-- [ ] **Bigram Character Model** — Generate text character-by-character (128×128 ASCII model)
-- [ ] **Mini Transformer** — Self-Attention, RoPE, KV Cache on bare metal
-- [ ] **AI System Agent** — AI can execute OS commands based on natural language
-- [ ] **Port llama2.c** — Run actual TinyStories model on bare metal
-- [ ] **Interrupt-driven keyboard** — Replace polling with IRQ-based input
-- [ ] **Virtual memory** — Paging and memory protection
-- [ ] **Simple filesystem** — Read files from disk
+### Phase 1: AI Agent Kernel ✅ Complete
+- [x] Intent Classifier (50+ rules, bilingual)
+- [x] AI Command Dispatch
+- [x] Multi-Engine Router (fast/transformer)
+- [x] Context-Aware System Reports
+- [x] VGA Scrolling & Status Bar
+
+### Phase 2: Smart Model Orchestration 🔨 Next
+- [ ] Larger model (stories15M — 15M params)
+- [ ] SmolLM-135M with Q8 quantization
+- [ ] Task-specific model routing
+- [ ] Parallel inference across cores
+
+### Phase 3: Connected Edition
+- [ ] E1000 network driver for QEMU
+- [ ] Minimal TCP/IP stack
+- [ ] HTTP client for cloud AI APIs
+
+### Phase 4: Cognitive OS
+- [ ] Simple filesystem (FAT12/16)
+- [ ] Ephemeral program compilation
+- [ ] Vector-based file search
+- [ ] Proactive AI assistant
+
+## 📈 Version History
+
+| Version | Milestone |
+|---------|-----------|
+| v1.0 | Single-core kernel, VGA, keyboard |
+| v1.7 | Dual-core SMP |
+| v3.0 | 4-core SMP, 32-token AI, interactive shell |
+| v3.1 | Llama2 transformer engine ported |
+| v3.2 | x87 FPU hardware math → coherent English |
+| v3.3 | Prompt support, temperature sampling |
+| **v3.4** | **Q8_0 quantization (3.5x compression)** |
+| **v3.5** | **AI Agent Kernel, VGA scrolling, status bar** |
 
 ## 📜 License
 
 MIT License — See [LICENSE](LICENSE) file.
 
-Built for educational purposes in low-level systems engineering and AI.
+---
+
+**Built from scratch for educational purposes in low-level systems engineering and AI inference.**
+*No Linux. No libc. No dependencies. Just raw x86 and C.*

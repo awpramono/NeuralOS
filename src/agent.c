@@ -5,6 +5,9 @@
 // Transforms the OS from passive shell → intelligent reasoning engine
 // ============================================================================
 
+// Session state
+static uint32_t g_query_count = 0;
+
 // ----------------------------------------------------------------------------
 // Intent types — what the user wants the OS to do
 
@@ -250,10 +253,13 @@ static void report_full_system() {
 // Agent Dispatch — execute the classified intent
 
 void agent_dispatch(const char *input) {
+    g_query_count++;
     IntentResult intent = classify_intent(input);
 
-    // Debug: show classification
-    print_string("[Agent] Intent: ", 0x08);
+    // Debug: show classification + query number
+    print_string("[Agent #", 0x08);
+    print_number(g_query_count, 0x08);
+    print_string("] Intent: ", 0x08);
     switch (intent.type) {
         case INTENT_SYSTEM_MEM:  print_string("SYSTEM_MEM", 0x08); break;
         case INTENT_SYSTEM_CPU:  print_string("SYSTEM_CPU", 0x08); break;
@@ -297,6 +303,7 @@ void agent_dispatch(const char *input) {
 
         case INTENT_SYSTEM_CLEAR:
             clear_screen();
+            update_status_bar();
             print_string("NeuralOS v3.5 — AI Agent Mode\n", 0x0B);
             break;
 
