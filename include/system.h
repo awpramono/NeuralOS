@@ -105,9 +105,10 @@ int llama_is_loaded();
 int llama_get_vocab_size();
 
 // 11. Keyboard PS/2 Driver
-char keyboard_read_char();
+char keyboard_poll_char();
 
 // 12. AI Agent Layer
 void agent_dispatch(const char *input);
+void agent_proactive_prompt();
 
 #endif

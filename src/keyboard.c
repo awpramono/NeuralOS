@@ -16,23 +16,21 @@ static const char scancode_to_ascii[] = {
     '*', 0, ' '
 };
 
-// Fungsi utama untuk menangkap 1 huruf dari keyboard
-char keyboard_read_char() {
-    uint8_t scancode;
-    
-    // Polling: Loop ini akan menahan CPU sampai bit 0 dari Port 0x64 bernilai 1
-    // (Artinya ada data yang siap diambil di Port 0x60)
-    while ((inb(0x64) & 1) == 0);
+// Fungsi utama untuk menangkap 1 huruf dari keyboard tanpa memblokir
+char keyboard_poll_char() {
+    // Cek apakah ada data di buffer PS/2
+    if ((inb(0x64) & 1) == 0) {
+        return 0; // Tidak ada tombol ditekan, kembalikan 0 (idle)
+    }
     
     // Tarik datanya dari Port 0x60
-    scancode = inb(0x60);
+    uint8_t scancode = inb(0x60);
     
-    // Hardware mengirim 2 sinyal: saat tombol ditekan (Press) dan dilepas (Release).
-    // Sinyal "Release" selalu memiliki nilai hex lebih dari 0x80. 
-    // Kita hanya butuh sinyal "Press" (kurang dari 0x80).
-    if (scancode < 0x80) {
+    // Sinyal "Press" selalu kurang dari 0x80
+    // Pastikan tidak out-of-bounds dari scancode_to_ascii map
+    if (scancode < 0x80 && scancode < sizeof(scancode_to_ascii)) {
         return scancode_to_ascii[scancode];
     }
     
-    return 0; // Abaikan sinyal key-release
+    return 0; // Abaikan sinyal key-release atau unknown
 }

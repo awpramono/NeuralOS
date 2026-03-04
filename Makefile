@@ -41,6 +41,15 @@ run-15m-q8: myos.bin
 	@python3 scripts/prepare_model.py stories15M --q8
 	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 1G
 
+# Run with KVM hardware acceleration (MUCH FASTER for 15M model)
+run-15m-kvm: myos.bin
+	@python3 scripts/prepare_model.py stories15M
+	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 1G -enable-kvm -cpu host
+
+run-15m-q8-kvm: myos.bin
+	@python3 scripts/prepare_model.py stories15M --q8
+	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 1G -enable-kvm -cpu host
+
 # Run with Q8 quantized model (~3.5x compression)
 run-q8: myos.bin
 	@python3 scripts/prepare_model.py --q8

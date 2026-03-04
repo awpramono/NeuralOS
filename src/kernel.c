@@ -8,9 +8,13 @@ static inline uint8_t inb_port(uint16_t port) {
 
 void get_input(char *buffer, int max_len) {
     int idx = 0;
+    uint32_t idle_ticks = 0;
+    const uint32_t IDLE_THRESHOLD = 80000000; // Sekitar 10-15 detik di QEMU CPU poll-loop
+    
     while (1) {
-        char c = keyboard_read_char();
+        char c = keyboard_poll_char();
         if (c) {
+            idle_ticks = 0; // Reset timer saat ada aktivitas
             if (c == '\n') {
                 print_char('\n', 0x0F);
                 buffer[idx] = '\0';
@@ -22,7 +26,16 @@ void get_input(char *buffer, int max_len) {
                 buffer[idx++] = c;
                 print_char(c, 0x0E);
             }
-            while(inb_port(0x60) < 0x80);
+            while(inb_port(0x60) < 0x80); // Wait for key release
+        } else {
+            // Pengguna sedang diam (idle)
+            idle_ticks++;
+            if (idx == 0 && idle_ticks >= IDLE_THRESHOLD) {
+                // Panggil interaksi proaktif, lalu gambar lagi prompt-nya
+                agent_proactive_prompt();
+                idle_ticks = 0;  // Reset ke 0 setelah memberikan proaktif
+                print_string("\nUSER > ", 0x0A);
+            }
         }
     }
 }

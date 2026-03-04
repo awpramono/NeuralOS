@@ -7,6 +7,7 @@
 
 // Session state
 static uint32_t g_query_count = 0;
+static uint32_t g_success_count = 0;
 
 // ----------------------------------------------------------------------------
 // Intent types — what the user wants the OS to do
@@ -184,6 +185,44 @@ IntentResult classify_intent(const char *input) {
 }
 
 // ----------------------------------------------------------------------------
+// AI Firewall — Safety Guardrails Checks
+// Evaluates raw input for dangerous or malformed instructions before execution
+// ----------------------------------------------------------------------------
+
+static int firewall_check(const char *input) {
+    if (!input || input[0] == '\0') return 0; // Empty input
+
+    // Block simulated shell escapes
+    if (contains_ci(input, "sudo ") || contains_ci(input, "rm -") || 
+        contains_ci(input, "DROP TABLE")) {
+        print_string("AI > ", 0x0D);
+        print_string("[Firewall Block] ", 0x0C);
+        print_string("Request implies destructive behavior. Rejected.\n", 0x0C);
+        return 0; // Deny
+    }
+    
+    // Block system halt/shutdown attempts by prompt
+    if (contains_ci(input, "halt") || contains_ci(input, "shutdown") || contains_ci(input, "reboot")) {
+        print_string("AI > ", 0x0D);
+        print_string("[Firewall Block] ", 0x0E);
+        print_string("Power management commands via voice/prompt disabled.\n", 0x0E);
+        return 0; // Deny
+    }
+
+    // Limit extreme payload sizes to prevent buffer overflows into stack
+    int len = 0;
+    while(input[len] != '\0' && len < 256) len++;
+    if (len >= 200) {
+        print_string("AI > ", 0x0D);
+        print_string("[Firewall Block] ", 0x0E);
+        print_string("Prompt too long (exceeds contextual buffer).\n", 0x0E);
+        return 0; // Deny
+    }
+
+    return 1; // Allow
+}
+
+// ----------------------------------------------------------------------------
 // System State Reporter — provides live data for AI context
 
 static void report_memory_state() {
@@ -254,6 +293,13 @@ static void report_full_system() {
 
 void agent_dispatch(const char *input) {
     g_query_count++;
+
+    // AI FIREWALL: Inspect before anything else
+    if (!firewall_check(input)) {
+        print_string("[Agent System] Task aborted by security policy.\n", 0x08);
+        return; // Early exit, do not count as success
+    }
+
     IntentResult intent = classify_intent(input);
 
     // Debug: show classification + query number
@@ -278,6 +324,9 @@ void agent_dispatch(const char *input) {
     print_string("%) matched: ", 0x08);
     if (intent.reason) print_string(intent.reason, 0x08);
     print_string("\n", 0x08);
+
+    // Track state (default everything success unless explicitly failed)
+    int task_success = 1;
 
     // Execute based on intent
     switch (intent.type) {
@@ -322,6 +371,7 @@ void agent_dispatch(const char *input) {
             } else {
                 print_string("AI > ", 0x0D);
                 print_string("Story engine not loaded. Use: make run-llama\n", 0x0C);
+                task_success = 0; // Failed task
             }
             break;
 
@@ -346,4 +396,47 @@ void agent_dispatch(const char *input) {
             }
             break;
     }
+
+    // Goal-oriented calculation and logging
+    if (task_success) {
+        g_success_count++;
+    }
 }
+
+// ----------------------------------------------------------------------------
+// Proactive Interaction — triggers when the user is idle
+// ----------------------------------------------------------------------------
+void agent_proactive_prompt() {
+    // Simple pseudo-random using query_count + success_count as seed variation
+    static uint32_t seed = 42;
+    seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF;
+    int choice = (seed + g_query_count * 7) % 5;
+    
+    print_string("\n\nAI > ", 0x0D);
+    print_string("[Proactive] ", 0x0A);
+    
+    switch (choice) {
+        case 0:
+            print_string("Sepertinya Anda sedang sibuk berpikir. Butuh informasi status CPU atau Memori?\n", 0x0F);
+            break;
+        case 1:
+            if (llama_is_loaded()) {
+                print_string("Llama2 Creative Engine siap. Mau saya buatkan cerita dongeng malam ini?\n", 0x0F);
+            } else {
+                print_string("Jangan lupa 'make run-llama' agar saya bisa bercerita panjang untuk Anda.\n", 0x0F);
+            }
+            break;
+        case 2:
+            print_string("Sejauh ini kita sudah menyelesaikan ", 0x0F);
+            print_number(g_success_count, 0x0E);
+            print_string(" task dengan sukses. Ada yang bisa dibantu lagi?\n", 0x0F);
+            break;
+        case 3:
+            print_string("Sistem berjalan stabil. Ketik 'clear' jika layar Anda sudah terlalu penuh.\n", 0x0F);
+            break;
+        case 4:
+            print_string("Saya bisa membantu merangkum informasi OS. Ketik 'info' saja!\n", 0x0F);
+            break;
+    }
+}
+
