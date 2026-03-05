@@ -157,6 +157,7 @@ static const KeywordRule RULES[] = {
     {"write",     INTENT_AI_STORY, 70},
 
     // Code/Technical
+    {"tcc ",      INTENT_AI_CODE, 100},
     {"vm ",       INTENT_AI_CODE, 95},
     {"run ",      INTENT_AI_CODE, 95},
     {"calc ",     INTENT_AI_CODE, 95},
@@ -197,6 +198,14 @@ IntentResult classify_intent(const char *input) {
         result.type = INTENT_SYSTEM_FS;
         result.confidence = 100;
         result.reason = "fs_direct";
+        return result;
+    }
+    
+    // Fast-track exact command prefix for TCC
+    if (string_starts_with(input, "tcc ")) {
+        result.type = INTENT_AI_CODE;
+        result.confidence = 100;
+        result.reason = "tcc_direct";
         return result;
     }
 
@@ -459,9 +468,17 @@ void agent_dispatch(const char *input) {
             break;
 
         case INTENT_AI_CODE:
+            // Intercept Bare Metal C Compiler (TCC)
+            if (string_starts_with(input, "tcc ")) {
+                const char *source = input + 4;
+                while (*source == ' ') source++;
+                run_neuralc(source);
+                break;
+            }
+
             // Intercept VM/Script commands
-            if (contains_ci(input, "vm ") || contains_ci(input, "run ") || 
-                contains_ci(input, "calc ") || contains_ci(input, "execute ")) {
+            if (string_starts_with(input, "vm ") || string_starts_with(input, "run ") || 
+                string_starts_with(input, "calc ") || string_starts_with(input, "execute ")) {
                 
                 // Extract script after keyword
                 const char *script = input;

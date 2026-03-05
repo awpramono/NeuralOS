@@ -117,7 +117,10 @@ void agent_proactive_prompt();
 // 13. Ephemeral Sandbox
 void vm_execute(const char *script);
 
-// 14. Remote Serial Telemetry (COM1)
+// 14. Tiny C Compiler (NeuralC)
+void run_neuralc(const char *source);
+
+// 15. Remote Serial Telemetry (COM1)
 void serial_init();
 void serial_print_char(char a);
 void serial_print_string(const char *str);

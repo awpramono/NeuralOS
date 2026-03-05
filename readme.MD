@@ -1,4 +1,4 @@
-# 🧠 NeuralOS v3.6.2 — Agentic AI Operating System
+# 🧠 NeuralOS v3.6.5 — Agentic AI Operating System
 
 **NeuralOS** is a micro operating system built from scratch that runs a **real Llama2 Transformer and AI Agent directly on bare metal** — no Linux, no libc, no modern software stack. It features intent-driven natural language processing, Q8 quantized inference, 4-core SMP parallel computation, and an AI Agent kernel that understands what you *mean*, not just what you type.
 
@@ -51,8 +51,10 @@
 | **4-Core SMP + KVM** | APIC IPI wake, per-core stacks, parallel matmul + hardware acceleration |
 | **VGA Scrolling** | Line-by-line scroll, hardware cursor, persistent status bar |
 | **Non-blocking PS/2** | Async keyboard polling driver enables background OS/AI tasks |
+| **NeuralFS** | Native bare-metal flat file system with superblocks directly on raw AT PIO disk |
+| **Tiny C Compiler** | Fully-integrated Embedded C Interpreter (`neuralc`) for self-compilation of C code |
 | **Ephemeral Sandbox** | In-kernel bytecode VM executes RPN logic (Stack Machine) on the fly |
-| **ATA PIO Disk** | Multi-sector reads, progress reporting for large models (up to 128MB) |
+| **COM1 Telemetry** | Background logging of system state and agent behavior to isolated serial port |
 | **Bump Allocator** | Heap at 16MB, supports calloc/memcpy/memset |
 
 ### 🏗️ Architecture
@@ -126,7 +128,9 @@ make clean
 | `apa saja yang bisa dilakukan?` | SYSTEM_HELP | Feature list |
 | `version` | SYSTEM_VER | Version info |
 | `tell me a story about a dog` | AI_STORY | Llama2 generates a story |
-| `sudo rm -rf /` | FIREWALL | Agent intercepts and rejects destructive instruction |
+| `ls` | SYSTEM_FS | NeuralFS renders directory listing |
+| `tulis` | AI_STORY | Llama2 generates a story |
+| `tcc void main(){print_string("Hi");}` | AI_CODE | NeuralC compiles structure inline |
 | `run 10 5 * print` | AI_CODE | Ephemeral VM executes RPN Math (Output: 50) |
 
 ## 🛠️ Module Overview
@@ -138,6 +142,8 @@ make clean
 | `src/kernel.c` | Main kernel: boot sequence, idle timers, loop |
 | **`src/agent.c`** | **AI Agent: intent classifier, firewall, goal-oriented dispatcher** |
 | `src/llama2.c` | Llama2 transformer engine (full forward pass) |
+| **`src/neuralc.c`** | **Embedded Tiny C Compiler / C4 interpreter** |
+| **`src/fs.c`** | **NeuralFS: Superblocks and raw disk file storage** |
 | **`src/vm.c`** | **Ephemeral Sandbox: Stack machine RPN interpreter** |
 | `src/ai.c` | 32-token fast AI engine (GGUF) |
 | `src/math.c` | x87 FPU math + Q8 matmul |
@@ -146,10 +152,8 @@ make clean
 | `src/vga.c` | VGA driver with scrolling + status bar |
 | `src/keyboard.c` | PS/2 keyboard non-blocking polling driver |
 | `src/ide.c` | ATA PIO disk driver (multi-sector) |
+| `src/serial.c` | COM1 Serial Port driver |
 | `include/system.h` | All type defs and function prototypes |
-| `scripts/prepare_model.py` | Download + inject 260K / 15M models into disk.img |
-| `scripts/quantize.py` | Float32 → Q8 quantizer (pure Python) |
-| `scripts/make_gguf.py` | Generate 32-token GGUF brain |
 
 ## 📊 Technical Specifications
 

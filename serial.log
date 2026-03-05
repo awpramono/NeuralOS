@@ -7,11 +7,3 @@
 [AGENT] No previous disk state detected. Formatting sector 10...
 [FS] Initializing NeuralFS...
 [FS] Formatting fresh filesystem...
-[AGENT TELEMETRY #1] Intent: SYSTEM_FS (100%) matched: fs_direct
-[AGENT TELEMETRY #2] Intent: SYSTEM_INFO (70%) matched: info
-[AGENT TELEMETRY #3] Intent: AI_CHAT (50%) matched: no strong match
-[ROUTER] Dispatching to: Llama2 Transformer
-[AGENT TELEMETRY #4] Intent: SYSTEM_FS (100%) matched: fs_direct
-[AGENT TELEMETRY #5] Intent: SYSTEM_HELP (90%) matched: help
-[AGENT TELEMETRY #6] Intent: AI_CHAT (50%) matched: no strong match
-[ROUTER] Dispatching to: Llama2 Transformer
