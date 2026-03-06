@@ -34,6 +34,14 @@ MODELS = {
         "tok_file":   "tokenizer.bin",
         "tok_size":   512000,
         "description": "15M params, 32000 tokens, ~60MB"
+    },
+    "SmolLM135M": {
+        "model_url":  "https://huggingface.co/imartinez/SmolLM-135M-llama2.c/resolve/main/SmolLM-135M.bin",
+        "tok_url":    "https://raw.githubusercontent.com/karpathy/llama2.c/master/tokenizer.bin",
+        "model_file": "SmolLM-135M.bin",
+        "tok_file":   "tokenizer.bin",
+        "tok_size":   512000,
+        "description": "SmolLM 135M params, 32000 tokens, ~540MB (135MB Q8)"
     }
 }
 

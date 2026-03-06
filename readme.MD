@@ -181,12 +181,12 @@ make clean
 - [x] Context-Aware System Reports
 - [x] VGA Scrolling & Status Bar
 
-### Phase 2: Smart Model Orchestration ⚙️ In Progress (65%)
+### Phase 2: Smart Model Orchestration ⚙️ ✅ Complete (100%)
 - [x] Larger model (stories15M — 15M params)
 - [x] Multi-Model Support (stories260K vs 15M)
 - [x] KVM Hardware Acceleration in QEMU
-- [ ] SmolLM-135M with Q8 quantization
-- [ ] Task-specific model routing
+- [x] SmolLM-135M with Q8 quantization
+- [x] Task-specific model routing
 
 ### Phase 3: Connected Edition 🌱 Early Dev (10%)
 - [x] AI Firewall (Basic Gatekeeping / Destructive block)

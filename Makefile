@@ -55,8 +55,17 @@ run-q8: myos.bin
 	@python3 scripts/prepare_model.py --q8
 	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 512M -serial file:serial.log
 
+# Run with SmolLM-135M
+run-smollm: myos.bin
+	@python3 scripts/prepare_model.py SmolLM135M
+	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 1G -enable-kvm -cpu host -serial file:serial.log
+
+run-smollm-q8: myos.bin
+	@python3 scripts/prepare_model.py SmolLM135M --q8
+	@qemu-system-i386 -kernel myos.bin -drive file=disk.img,format=raw,index=0,media=disk -smp 4 -m 1G -enable-kvm -cpu host -serial file:serial.log
+
 clean:
 	@rm -f src/*.o myos.bin disk.img
 
-.PHONY: all run run-llama run-15m run-15m-q8 run-q8 clean
+.PHONY: all run run-llama run-15m run-15m-q8 run-q8 run-smollm run-smollm-q8 clean
 
