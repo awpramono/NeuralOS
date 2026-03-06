@@ -13,6 +13,8 @@ void get_input(char *buffer, int max_len) {
       80000000; // Sekitar 10-15 detik di QEMU CPU poll-loop
 
   while (1) {
+    e1000_poll(); // Process incoming packets (ARP/ICMP etc)
+
     char c = keyboard_poll_char();
     if (c) {
       idle_ticks = 0; // Reset timer saat ada aktivitas
@@ -112,6 +114,11 @@ void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
 
   // Initialize FAT filesystem
   fat_init();
+
+  // Initialize Networking Stack
+  pci_init();
+  e1000_init();
+  net_init();
 
   // Attempt to load Llama2 model from disk
   // Q8 model at sector 300 (if present), otherwise float32 at sector 200

@@ -53,7 +53,7 @@ static e1000_tx_desc *tx_descs;
 static e1000_rx_desc *rx_descs;
 static uint32_t tx_cur = 0;
 static uint32_t rx_cur = 0;
-static uint8_t mac_addr[6];
+uint8_t mac_addr[6];
 
 extern int pci_e1000_found;
 extern uint32_t e1000_mmio_base;
@@ -196,4 +196,29 @@ void net_send_packet(const uint8_t *payload, uint16_t length) {
     ;
 
   serial_print_string("[NET] Packet transmitted successfully!\n");
+}
+
+extern void net_receive_packet(uint8_t *packet, uint16_t length);
+
+void e1000_poll() {
+  if (!pci_e1000_found)
+    return;
+
+  // RX Descriptor Status Bit 0 represents DD (Descriptor Done)
+  while (rx_descs[rx_cur].status & 0x01) {
+    uint8_t *packet = (uint8_t *)rx_descs[rx_cur].addr;
+    uint16_t length = rx_descs[rx_cur].length;
+
+    if (!(rx_descs[rx_cur].errors)) {
+      // Pass it to TCP/IP Stack
+      net_receive_packet(packet, length);
+    }
+
+    // Reset status and tell E1000 we consumed it
+    rx_descs[rx_cur].status = 0;
+
+    uint16_t next_rx = (rx_cur + 1) % E1000_NUM_RX_DESC;
+    mmio_write32(e1000_mmio_base, E1000_REG_RDT, rx_cur); // RDT trails RDH
+    rx_cur = next_rx;
+  }
 }

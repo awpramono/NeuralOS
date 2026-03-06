@@ -188,10 +188,10 @@ make clean
 - [x] SmolLM-135M with Q8 quantization
 - [x] Task-specific model routing
 
-### Phase 3: Connected Edition 🌱 Early Dev (30%)
+### Phase 3: Connected Edition 🌱 Early Dev (60%)
 - [x] AI Firewall (Basic Gatekeeping / Destructive block)
 - [x] E1000 network driver for QEMU
-- [ ] Minimal TCP/IP stack
+- [x] Minimal TCP/IP stack
 - [ ] HTTP client for cloud AI APIs
 
 ### Phase 4: Cognitive OS 🧠 ✅ Complete (100%)
