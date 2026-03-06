@@ -110,6 +110,9 @@ void kernel_main(uint32_t magic, uint32_t ebx_mboot_ptr) {
   print_string("[Boot] Mounting NeuralFS...\n", 0x0E);
   fs_init();
 
+  // Initialize FAT filesystem
+  fat_init();
+
   // Attempt to load Llama2 model from disk
   // Q8 model at sector 300 (if present), otherwise float32 at sector 200
   // Tokenizer at sector 130000

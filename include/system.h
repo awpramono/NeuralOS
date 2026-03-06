@@ -137,6 +137,9 @@ int fs_write_file(const char *filename, const uint8_t *data, uint32_t size);
 int fs_read_file(const char *filename, uint8_t **out_data);
 void fs_list_files();
 
+// 15.5 FAT File System (Phase 4)
+void fat_init();
+
 // 16. PCI and Networking (Phase 3)
 void pci_init();
 void e1000_init();
