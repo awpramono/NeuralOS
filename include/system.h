@@ -137,4 +137,9 @@ int fs_write_file(const char *filename, const uint8_t *data, uint32_t size);
 int fs_read_file(const char *filename, uint8_t **out_data);
 void fs_list_files();
 
+// 16. PCI and Networking (Phase 3)
+void pci_init();
+void e1000_init();
+void net_send_packet(const uint8_t *payload, uint16_t length);
+
 #endif
