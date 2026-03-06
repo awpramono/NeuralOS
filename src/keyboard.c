@@ -7,16 +7,25 @@ static inline uint8_t inb(uint16_t port) {
     return ret;
 }
 
-// Peta Scan Code PS/2 ke ASCII (QWERTY Standard)
+// Peta Scan Code PS/2 ke ASCII (QWERTY Standard) - LOWERCASE default
 static const char scancode_to_ascii[] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
-    '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']', '\n',
-    0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', '\'', '`',
-    0, '\\', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '/', 0,
+    '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
+    0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',
+    0, '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0,
     '*', 0, ' '
 };
 
-// Fungsi utama untuk menangkap 1 huruf dari keyboard tanpa memblokir
+static const char shift_map[] = {
+    0,  27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
+    '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n',
+    0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '\"', '~',
+    0, '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0,
+    '*', 0, ' '
+};
+
+static int shift_active = 0;
+
 char keyboard_poll_char() {
     // Cek apakah ada data di buffer PS/2
     if ((inb(0x64) & 1) == 0) {
@@ -26,9 +35,14 @@ char keyboard_poll_char() {
     // Tarik datanya dari Port 0x60
     uint8_t scancode = inb(0x60);
     
+    // Handle status tombol Shift
+    if (scancode == 0x2A || scancode == 0x36) { shift_active = 1; return 0; }
+    if (scancode == 0xAA || scancode == 0xB6) { shift_active = 0; return 0; }
+    
     // Sinyal "Press" selalu kurang dari 0x80
     // Pastikan tidak out-of-bounds dari scancode_to_ascii map
     if (scancode < 0x80 && scancode < sizeof(scancode_to_ascii)) {
+        if (shift_active) return shift_map[scancode];
         return scancode_to_ascii[scancode];
     }
     

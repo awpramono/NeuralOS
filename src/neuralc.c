@@ -4,7 +4,7 @@
 // Based on 'c4' by Robert Swierczek (C in 4 functions)
 // Adapted for bare-metal OS context (no stdlib, simple print mapping)
 
-int *nc_p, *nc_lp, *nc_data;
+char *nc_p, *nc_lp, *nc_data;
 int *nc_e, *nc_le, *nc_id, *nc_sym;
 int nc_tk, nc_ival, nc_ty, nc_loc, nc_line, nc_src, nc_debug;
 
@@ -34,7 +34,7 @@ static void next(void) {
             pp = (char*)nc_p - 1;
             while ((*nc_p >= 'a' && *nc_p <= 'z') || (*nc_p >= 'A' && *nc_p <= 'Z') || (*nc_p >= '0' && *nc_p <= '9') || *nc_p == '_')
                 nc_tk = nc_tk * 147 + *nc_p++;
-            nc_tk = (nc_tk << 6) + (nc_p - (int*)pp);
+            nc_tk = (nc_tk << 6) + (nc_p - pp);
             nc_id = nc_sym;
             while (nc_id[Tk]) {
                 if (nc_tk == nc_id[Hash]) {
@@ -101,7 +101,7 @@ static void expr(int lev) {
     else if (nc_tk == '"') {
         *++nc_e = IMM; *++nc_e = nc_ival; next();
         while (nc_tk == '"') next();
-        nc_data = (int *)(((int)nc_data + sizeof(int)) & ~(sizeof(int) - 1)); nc_ty = PTR;
+        nc_data = (char *)(((int)nc_data + sizeof(int)) & ~(sizeof(int) - 1)); nc_ty = PTR;
     } else if (nc_tk == Sizeof) {
         next(); if (nc_tk == '(') next();
         nc_ty = INT; if (nc_tk == Int) next(); else if (nc_tk == Char) { next(); nc_ty = CHAR; }
@@ -273,14 +273,14 @@ void run_neuralc(const char *source) {
     // Setup keywords
     const char *kwd = "char else enum if int return sizeof while "
                       "print_string print_number mem_alloc memset string_compare exit void main";
-    nc_p = (int*)kwd;
+    nc_p = (char*)kwd;
     i = Char; while (i <= While) { next(); nc_id[Tk] = i++; }
     i = SYS_PRINTSTR; while (i <= EXIT) { next(); nc_id[Class] = Sys; nc_id[Type] = INT; nc_id[Val] = i++; }
     next(); nc_id[Tk] = Char;
     next(); idmain = nc_id; // main
 
     // Parse source
-    nc_p = (int*)source;
+    nc_p = (char*)source;
     nc_line = 1;
     next();
     
@@ -340,7 +340,7 @@ void run_neuralc(const char *source) {
                     }
                 }
             } else {
-                nc_id[Class] = Glo; nc_id[Val] = (int)nc_data; nc_data = (int *)((int)nc_data + sizeof(int));
+                nc_id[Class] = Glo; nc_id[Val] = (int)nc_data; nc_data = (char *)((int)nc_data + sizeof(int));
             }
             if (nc_tk == ',') next();
         }
@@ -399,6 +399,11 @@ void run_neuralc(const char *source) {
         else if (i == SYS_MSET)     { a = (int)memset((void*)sp[2], sp[1], *sp); }
         else if (i == SYS_MCMP)     { a = string_compare((char*)sp[2], (char*)sp[1]); }
         else if (i == EXIT) { print_string("[TCC] Program return.\n", 0x0A); return; }
-        else { print_string("TCC Fatal Error.\n", 0x0C); return; }
+        else { 
+            print_string("TCC Fatal Error. Unknown Opcode: ", 0x0C); 
+            print_number(i, 0x0C); 
+            print_string("\n", 0x0C); 
+            return; 
+        }
     }
 }

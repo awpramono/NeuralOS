@@ -202,7 +202,7 @@ IntentResult classify_intent(const char *input) {
     }
     
     // Fast-track exact command prefix for TCC
-    if (string_starts_with(input, "tcc ")) {
+    if (string_starts_with(input, "tcc")) {
         result.type = INTENT_AI_CODE;
         result.confidence = 100;
         result.reason = "tcc_direct";
@@ -469,10 +469,15 @@ void agent_dispatch(const char *input) {
 
         case INTENT_AI_CODE:
             // Intercept Bare Metal C Compiler (TCC)
-            if (string_starts_with(input, "tcc ")) {
-                const char *source = input + 4;
+            if (string_starts_with(input, "tcc")) {
+                const char *source = input + 3;
                 while (*source == ' ') source++;
-                run_neuralc(source);
+                if (*source == '\0') {
+                    print_string("AI > ", 0x0D);
+                    print_string("Sintaks: tcc void main() { print_string(\"Halo!\\n\"); }\n", 0x0E);
+                } else {
+                    run_neuralc(source);
+                }
                 break;
             }
 

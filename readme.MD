@@ -97,7 +97,6 @@ sudo apt install gcc-multilib   # for 32-bit support
 ### Build & Run
 
 ```bash
-```bash
 # Simple build + run (32-token AI only)
 make run
 
