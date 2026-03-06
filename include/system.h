@@ -136,6 +136,7 @@ void fs_init();
 int fs_write_file(const char *filename, const uint8_t *data, uint32_t size);
 int fs_read_file(const char *filename, uint8_t **out_data);
 void fs_list_files();
+void fs_vector_search(const char *query);
 
 // 15.5 FAT File System (Phase 4)
 void fat_init();
