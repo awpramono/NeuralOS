@@ -4,6 +4,10 @@
 #define PCI_CONFIG_ADDRESS 0xCF8
 #define PCI_CONFIG_DATA 0xCFC
 
+static inline void outl_port(uint16_t port, uint32_t val) {
+  __asm__ volatile("outl %0, %1" : : "a"(val), "Nd"(port));
+}
+
 static uint32_t pci_config_read(uint8_t bus, uint8_t slot, uint8_t func,
                                 uint8_t offset) {
   uint32_t address;
@@ -15,10 +19,7 @@ static uint32_t pci_config_read(uint8_t bus, uint8_t slot, uint8_t func,
   address = (uint32_t)((lbus << 16) | (lslot << 11) | (lfunc << 8) |
                        (offset & 0xFC) | ((uint32_t)0x80000000));
 
-  outb_port(PCI_CONFIG_ADDRESS + 0, (uint8_t)(address & 0xFF));
-  outb_port(PCI_CONFIG_ADDRESS + 1, (uint8_t)((address >> 8) & 0xFF));
-  outb_port(PCI_CONFIG_ADDRESS + 2, (uint8_t)((address >> 16) & 0xFF));
-  outb_port(PCI_CONFIG_ADDRESS + 3, (uint8_t)((address >> 24) & 0xFF));
+  outl_port(PCI_CONFIG_ADDRESS, address);
 
   // Read the data
   uint32_t ret = 0;
@@ -32,10 +33,7 @@ static void pci_config_write_word(uint8_t bus, uint8_t slot, uint8_t func,
   address = (uint32_t)((bus << 16) | (slot << 11) | (func << 8) |
                        (offset & 0xFC) | ((uint32_t)0x80000000));
 
-  outb_port(PCI_CONFIG_ADDRESS + 0, (uint8_t)(address & 0xFF));
-  outb_port(PCI_CONFIG_ADDRESS + 1, (uint8_t)((address >> 8) & 0xFF));
-  outb_port(PCI_CONFIG_ADDRESS + 2, (uint8_t)((address >> 16) & 0xFF));
-  outb_port(PCI_CONFIG_ADDRESS + 3, (uint8_t)((address >> 24) & 0xFF));
+  outl_port(PCI_CONFIG_ADDRESS, address);
 
   __asm__ volatile("outw %0, %1"
                    :

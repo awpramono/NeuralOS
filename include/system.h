@@ -148,5 +148,6 @@ void e1000_poll();
 void net_init();
 void net_send_packet(const uint8_t *payload, uint16_t length);
 void net_receive_packet(uint8_t *packet, uint16_t length);
+void net_http_request(const char *domain);
 
 #endif

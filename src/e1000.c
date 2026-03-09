@@ -28,11 +28,11 @@
 typedef struct {
   uint64_t addr;
   uint16_t length;
-  uint16_t cso;
+  uint8_t cso;
   uint8_t cmd;
   uint8_t status;
   uint8_t css;
-  uint8_t special;
+  uint16_t special;
 } __attribute__((packed)) e1000_tx_desc;
 
 typedef struct {
@@ -181,7 +181,9 @@ void net_send_packet(const uint8_t *payload, uint16_t length) {
   if (!pci_e1000_found)
     return;
 
-  tx_descs[tx_cur].addr = (uint32_t)payload;
+  uint8_t *tx_buf = (uint8_t *)(uint32_t)tx_descs[tx_cur].addr;
+  memcpy(tx_buf, payload, length);
+
   tx_descs[tx_cur].length = length;
   // CMD: EOP (bit 0), IFCS (bit 1), RS (bit 3)
   tx_descs[tx_cur].cmd = (1 << 0) | (1 << 1) | (1 << 3);

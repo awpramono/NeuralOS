@@ -63,6 +63,7 @@ typedef enum {
   INTENT_AI_EXPLAIN,   // Explain something
   INTENT_AI_CODE,      // Code/technical question
   INTENT_SYSTEM_FS,    // NeuralFS file operations (ls, cat, echo)
+  INTENT_AI_HTTP,      // HTTP client request
   INTENT_UNKNOWN       // Couldn't classify
 } IntentType;
 
@@ -186,6 +187,13 @@ static const KeywordRule RULES[] = {
     {"bagaimana", INTENT_AI_EXPLAIN, 75},
     {"mengapa", INTENT_AI_EXPLAIN, 80},
     {"why", INTENT_AI_EXPLAIN, 80},
+
+    // HTTP / Cloud API
+    {"http", INTENT_AI_HTTP, 95},
+    {"fetch", INTENT_AI_HTTP, 95},
+    {"curl ", INTENT_AI_HTTP, 95},
+    {"api", INTENT_AI_HTTP, 85},
+    {"cloud", INTENT_AI_HTTP, 80},
 };
 
 #define NUM_RULES (int)(sizeof(RULES) / sizeof(RULES[0]))
@@ -197,8 +205,8 @@ IntentResult classify_intent(const char *input) {
   IntentResult result = {INTENT_AI_CHAT, 30, "default: general chat"};
 
   // Score each intent based on keyword matches
-  int scores[12] = {0};
-  const char *reasons[12] = {0};
+  int scores[13] = {0};
+  const char *reasons[13] = {0};
 
   // Fast-track exact command prefixes for NeuralFS so it doesn't get confused
   if (string_starts_with(input, "ls") || string_starts_with(input, "cat ") ||
@@ -217,6 +225,16 @@ IntentResult classify_intent(const char *input) {
     return result;
   }
 
+  // Fast-track HTTP
+  if (string_starts_with(input, "http ") ||
+      string_starts_with(input, "curl ") ||
+      string_starts_with(input, "fetch ")) {
+    result.type = INTENT_AI_HTTP;
+    result.confidence = 100;
+    result.reason = "http_direct";
+    return result;
+  }
+
   for (int r = 0; r < NUM_RULES; r++) {
     if (contains_ci(input, RULES[r].keyword)) {
       IntentType t = RULES[r].intent;
@@ -230,7 +248,7 @@ IntentResult classify_intent(const char *input) {
   // Find highest scoring intent
   int best_score = 0;
   IntentType best_intent = INTENT_AI_CHAT;
-  for (int i = 0; i < 12; i++) {
+  for (int i = 0; i < 13; i++) {
     if (scores[i] > best_score) {
       best_score = scores[i];
       best_intent = (IntentType)i;
@@ -418,6 +436,9 @@ void agent_dispatch(const char *input) {
   case INTENT_AI_CODE:
     serial_print_string("AI_CODE");
     break;
+  case INTENT_AI_HTTP:
+    serial_print_string("AI_HTTP");
+    break;
   default:
     serial_print_string("UNKNOWN");
     break;
@@ -499,6 +520,20 @@ void agent_dispatch(const char *input) {
                    0x0E);
     }
     break;
+
+  case INTENT_AI_HTTP: {
+    const char *domain = input;
+    if (string_starts_with(input, "http "))
+      domain += 5;
+    else if (string_starts_with(input, "fetch "))
+      domain += 6;
+    else if (string_starts_with(input, "curl "))
+      domain += 5;
+    else
+      domain = "api.neuralos.cloud";
+
+    net_http_request(domain);
+  } break;
 
   case INTENT_AI_STORY:
     if (llama_is_loaded()) {
