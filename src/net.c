@@ -116,35 +116,6 @@ static uint16_t calculate_checksum(void *vdata, size_t length) {
   return ~sum;
 }
 
-static uint16_t calculate_tcp_checksum(ipv4_header_t *ip, tcp_header_t *tcp,
-                                       uint16_t tcp_len) {
-  uint32_t sum = 0;
-
-  uint16_t *src = (uint16_t *)ip->src_ip;
-  sum += src[0];
-  sum += src[1];
-  uint16_t *dst = (uint16_t *)ip->dest_ip;
-  sum += dst[0];
-  sum += dst[1];
-  sum += htons(ip->protocol);
-  sum += htons(tcp_len);
-
-  uint16_t *data = (uint16_t *)tcp;
-  int len = tcp_len;
-  while (len > 1) {
-    sum += *data++;
-    len -= 2;
-  }
-  if (len > 0) {
-    uint16_t odd_byte = 0;
-    *((uint8_t *)&odd_byte) = *(uint8_t *)data;
-    sum += odd_byte;
-  }
-  while (sum >> 16)
-    sum = (sum & 0xFFFF) + (sum >> 16);
-  return ~sum;
-}
-
 // ============================================================================
 // Networking Core
 // ============================================================================
@@ -240,8 +211,6 @@ void net_handle_icmp(eth_header_t *eth, ipv4_header_t *ip, icmp_header_t *icmp,
                     sizeof(eth_header_t) + ntohs(ip->total_len));
   }
 }
-
-static uint32_t last_syn_ack_seq = 0;
 
 void net_handle_ipv4(eth_header_t *eth, ipv4_header_t *ip) {
   // Check if it's for our IP or broadcast

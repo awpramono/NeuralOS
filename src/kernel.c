@@ -1,11 +1,5 @@
 #include "system.h"
 
-static inline uint8_t inb_port(uint16_t port) {
-  uint8_t ret;
-  __asm__ volatile("inb %1, %0" : "=a"(ret) : "Nd"(port));
-  return ret;
-}
-
 void get_input(char *buffer, int max_len) {
   int idx = 0;
   uint32_t idle_ticks = 0;

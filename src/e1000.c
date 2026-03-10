@@ -208,7 +208,7 @@ void e1000_poll() {
 
   // RX Descriptor Status Bit 0 represents DD (Descriptor Done)
   while (rx_descs[rx_cur].status & 0x01) {
-    uint8_t *packet = (uint8_t *)rx_descs[rx_cur].addr;
+    uint8_t *packet = (uint8_t *)(uint32_t)rx_descs[rx_cur].addr;
     uint16_t length = rx_descs[rx_cur].length;
 
     if (!(rx_descs[rx_cur].errors)) {

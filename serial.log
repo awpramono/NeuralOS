@@ -13,19 +13,9 @@
 [NET] Packet transmitted successfully!
 [NET] Received ARP Request. Sending Reply.
 [NET] Packet transmitted successfully!
-[AGENT TELEMETRY #2] Intent: AI_GENCODE (95%) matched: ai-code 
+[AGENT TELEMETRY #2] Intent: SYSTEM_CLEAR (95%) matched: clear
+[AGENT TELEMETRY #3] Intent: SYSTEM_TIME (95%) matched: jam
+[AGENT TELEMETRY #4] Intent: AI_HTTP (100%) matched: http_direct
 [NET] Packet transmitted successfully!
-[AGENT TELEMETRY #3] Intent: AI_GENCODE (95%) matched: ai-code 
-[NET] Packet transmitted successfully!
-[AGENT TELEMETRY #4] Intent: SYSTEM_TIME (95%) matched: jam
-[AGENT TELEMETRY #5] Intent: AI_GENCODE (95%) matched: ai-code 
-[NET] Packet transmitted successfully!
-[AGENT TELEMETRY #6] Intent: AI_GENCODE (95%) matched: ai-code 
-[NET] Packet transmitted successfully!
-[AGENT TELEMETRY #7] Intent: SYSTEM_HELP (90%) matched: help
-[AGENT TELEMETRY #8] Intent: AI_HTTP (100%) matched: http_direct
-[NET] Packet transmitted successfully!
-[AGENT TELEMETRY #9] Intent: AI_GENCODE (95%) matched: ai-code 
-[NET] Packet transmitted successfully!
-[AGENT TELEMETRY #10] Intent: AI_GENCODE (95%) matched: ai-code 
-[NET] Packet transmitted successfully!
+[AGENT TELEMETRY #5] Intent: AI_CHAT (50%) matched: no strong match
+[ROUTER] Dispatching to: Fast 32-Token AI (Low-latency chat)

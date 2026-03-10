@@ -691,7 +691,7 @@ void run_neuralc(const char *source) {
 
   nc_sym = sym_pool;
   nc_e = text_pool;
-  nc_data = data_pool;
+  nc_data = (char *)data_pool;
   sp = stack_pool;
   memset(nc_sym, 0, poolsz);
   memset(nc_e, 0, poolsz);

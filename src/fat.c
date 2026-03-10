@@ -66,6 +66,7 @@ void fat_init() {
     uint32_t total_sectors = (bpb->total_sectors_16 == 0)
                                  ? bpb->total_sectors_32
                                  : bpb->total_sectors_16;
+    (void)total_sectors;
     uint32_t root_dir_sectors =
         ((bpb->root_entry_count * 32) + (bpb->bytes_per_sector - 1)) /
         bpb->bytes_per_sector;
