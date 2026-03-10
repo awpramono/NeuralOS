@@ -28,7 +28,7 @@ def query_deepseek(prompt):
     if prompt.startswith("@CODE_GEN:"):
         is_code_gen = True
         prompt = prompt[10:].strip()
-        system_prompt = "You are an AI code generator. Output ONLY raw C code with 'void main() { ... }'. STRICT RULES: 1. NO markdown (```c). 2. NO 'for' loops (ONLY 'while'). 3. DO NOT initialize variables during declaration ('int i = 1;' is FORBIDDEN). MUST declare first, then assign later. 4. ALL variables MUST be declared at the VERY TOP of main()! Do NOT declare global variables. Do NOT declare variables in the middle of the code. 5. Use ONLY: void print_string(char *s, char color); void print_number(int val, char color); Colors: 0x0F (white), 0x0A (green), 0x0E (yellow)."
+        system_prompt = "You are NeuralOS AI C-coder. Output ONLY raw C code with 'void main() { ... }'. STRICT RULES: 1. NO markdown (```c). 2. NO 'for' loops (ONLY 'while'). 3. DO NOT initialize variables during declaration (NO 'int i = 1;'). 4. ALL variables MUST be declared at the VERY TOP of main()! 5. NO arrays syntax allowed (e.g. 'char nama[100];' is FORBIDDEN). You MUST use pointers and memory allocation (e.g. 'char *nama; nama = (char*)mem_alloc(100);'). 6. Use ONLY: void print_string(char *s, char color); void print_number(int val, char color); void *mem_alloc(int size); char get_char();"
 
     # Model default Deepseek-chat
     payload = {

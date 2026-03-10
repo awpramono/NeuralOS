@@ -620,7 +620,13 @@ void agent_dispatch(const char *input) {
     else if (string_starts_with(input, "buatkan c "))
       prompt += 10;
 
-    net_codegen_request(prompt);
+    int is_perm = 0;
+    if (string_starts_with(prompt, "-permanent ")) {
+      is_perm = 1;
+      prompt += 11;
+    }
+
+    net_codegen_request(prompt, is_perm);
   } break;
 
   case INTENT_AI_STORY:
@@ -652,7 +658,33 @@ void agent_dispatch(const char *input) {
     }
 
     // Intercept VM/Script commands
-    if (string_starts_with(input, "vm ") || string_starts_with(input, "run ") ||
+    if (string_starts_with(input, "run ")) {
+      const char *script = input + 4;
+      while (*script == ' ')
+        script++;
+      if (*script == '\0') {
+        print_string("Syntax: run <filename>\n", 0x0E);
+        break;
+      }
+
+      uint8_t *filedata;
+      int size = fs_read_file(script, &filedata);
+      if (size >= 0) {
+        print_string("\n[NeuralC] Menjalankan Aplikasi ", 0x0D);
+        print_string(script, 0x0B);
+        print_string(" dari Disk...\n", 0x0D);
+        run_neuralc((const char *)filedata);
+        mem_free(filedata);
+      } else {
+        print_string("File tidak ditemukan di NeuralFS. Mengeksekusi sbg VM "
+                     "fallback...\n",
+                     0x0C);
+        vm_execute(script);
+      }
+      break;
+    }
+
+    if (string_starts_with(input, "vm ") ||
         string_starts_with(input, "calc ") ||
         string_starts_with(input, "execute ")) {
 

@@ -273,7 +273,9 @@ void net_handle_ipv4(eth_header_t *eth, ipv4_header_t *ip) {
         }
         print_string("\n", 0x0F);
       }
-    } else if (ntohs(udp->dest_port) == 12346) {
+    } else if (ntohs(udp->dest_port) == 12346 ||
+               ntohs(udp->dest_port) == 12347) {
+      int is_perm = (ntohs(udp->dest_port) == 12347);
       int payload_len = ntohs(udp->length) - sizeof(udp_header_t);
       uint8_t *payload_ptr = (uint8_t *)udp + sizeof(udp_header_t);
 
@@ -284,17 +286,44 @@ void net_handle_ipv4(eth_header_t *eth, ipv4_header_t *ip) {
         }
         print_string("\n", 0x0F);
 
-        // Execute it!
         // First, null-terminate it to be safe for TCC
-        uint8_t tcc_buffer[1024];
-        int copy_len = payload_len < 1023 ? payload_len : 1023;
+        uint8_t tcc_buffer[2048];
+        int copy_len = payload_len < 2047 ? payload_len : 2047;
         for (int i = 0; i < copy_len; i++)
           tcc_buffer[i] = payload_ptr[i];
         tcc_buffer[copy_len] = '\0';
 
-        print_string("\n[NeuralC] Kompilasi JIT Aktif...\n", 0x0B);
-        run_neuralc((const char *)tcc_buffer);
-        print_string("\n", 0x0F);
+        if (is_perm) {
+          static int app_id = 1;
+          char fname[16];
+          fname[0] = 'a';
+          fname[1] = 'p';
+          fname[2] = 'p';
+          int c = app_id;
+          int idx = 3;
+          if (c >= 10) {
+            fname[idx++] = '0' + (c / 10);
+            c %= 10;
+          }
+          fname[idx++] = '0' + c;
+          fname[idx++] = '.';
+          fname[idx++] = 'c';
+          fname[idx++] = '\0';
+          app_id++;
+
+          fs_write_file(fname, tcc_buffer, copy_len);
+          print_string(
+              "\n[NeuralFS] Blueprint tersimpan secara permanen ke Disk sbg: ",
+              0x0E);
+          print_string(fname, 0x0B);
+          print_string("\n[NeuralFS] Ketik perintah `run ", 0x0F);
+          print_string(fname, 0x0B);
+          print_string("` untuk mengeksekusi aplikasi ini dari OS!\n", 0x0F);
+        } else {
+          print_string("\n[NeuralC] Kompilasi JIT Aktif...\n", 0x0B);
+          run_neuralc((const char *)tcc_buffer);
+          print_string("\n", 0x0F);
+        }
       }
     }
   }
@@ -386,9 +415,17 @@ void net_http_request(const char *prompt) {
   print_string("[DeepSeek API] Permintaan terkirim!\n", 0x0F);
 }
 
-void net_codegen_request(const char *prompt) {
+void net_codegen_request(const char *prompt, int is_permanent) {
   print_string("AI > ", 0x0D);
-  print_string("[Net] Meminta Code Generation via UDP (Port 12346)...\n", 0x0B);
+  if (is_permanent) {
+    print_string("[Net] Meminta Code Generation via UDP (Port 12347 - "
+                 "Permanent Disk)...\n",
+                 0x0B);
+  } else {
+    print_string("[Net] Meminta Code Generation via UDP (Port 12346 - JIT "
+                 "Ephemeral)...\n",
+                 0x0B);
+  }
 
   // Ukuran prompt terbatas
   int prompt_len = 0;
@@ -436,9 +473,8 @@ void net_codegen_request(const char *prompt) {
   ip->dest_ip[3] = 2;
   ip->checksum = calculate_checksum(ip, sizeof(ipv4_header_t));
 
-  udp->src_port =
-      htons(12346); // Port 12346 supaya kembali ke block kode neuralc!
-  udp->dest_port = htons(8080); // Bridge UDP Localhost
+  udp->src_port = htons(is_permanent ? 12347 : 12346); // Port 12346/12347
+  udp->dest_port = htons(8080);                        // Bridge UDP Localhost
   udp->length = htons(sizeof(udp_header_t) + prefix_len + prompt_len);
   udp->checksum = 0;
 

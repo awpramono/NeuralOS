@@ -84,6 +84,7 @@ enum {
   SYS_MALLOC,
   SYS_MSET,
   SYS_MCMP,
+  SYS_GETCHAR,
   EXIT
 };
 
@@ -698,9 +699,10 @@ void run_neuralc(const char *source) {
   nc_error = 0;
 
   // Setup keywords
-  const char *kwd = "char else enum if int return sizeof while "
-                    "print_string print_number mem_alloc memset string_compare "
-                    "exit void main";
+  const char *kwd =
+      "char else enum if int return sizeof while "
+      "print_string print_number mem_alloc memset string_compare get_char "
+      "exit void main";
   nc_p = (char *)kwd;
   i = Char;
   while (i <= While) {
@@ -943,6 +945,16 @@ void run_neuralc(const char *source) {
       a = (int)memset((void *)sp[2], sp[1], *sp);
     } else if (i == SYS_MCMP) {
       a = string_compare((char *)sp[2], (char *)sp[1]);
+    } else if (i == SYS_GETCHAR) {
+      char kc = 0;
+      while (kc == 0) {
+        kc = keyboard_poll_char();
+      }
+      char tmp_str[2];
+      tmp_str[0] = kc;
+      tmp_str[1] = '\0';
+      print_string(tmp_str, 0x0F); // Echo ke layar
+      a = kc;
     } else if (i == EXIT) {
       print_string("[TCC] Program return.\n", 0x0A);
       return;
