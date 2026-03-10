@@ -300,6 +300,8 @@ static void expr(int lev) {
       t = 0;
       while (nc_tk != ')') {
         expr(Assign);
+        if (nc_error)
+          break;
         *++nc_e = PSH;
         ++t;
         if (nc_tk == ',')
@@ -410,6 +412,12 @@ static void expr(int lev) {
     *++nc_e = (nc_ty > PTR) ? sizeof(int) : sizeof(char);
     *++nc_e = (t == Inc) ? ADD : SUB;
     *++nc_e = (nc_ty == CHAR) ? SC : SI;
+  } else {
+    print_string("Error: Unexpected token '", 0x0C);
+    print_char(nc_tk < 128 ? nc_tk : '?', 0x0C);
+    print_string("'\n", 0x0C);
+    nc_error = 1;
+    return;
   }
 
   while (nc_tk >= lev) {
@@ -431,6 +439,8 @@ static void expr(int lev) {
       *++nc_e = JMP;
       d = ++nc_e;
       expr(Cond);
+      if (nc_error)
+        break;
       *d = (int)(nc_e + 1);
     } else if (nc_tk == Lor) {
       next();
@@ -645,8 +655,11 @@ static void stmt() {
       next();
   } else if (nc_tk == '{') {
     next();
-    while (nc_tk != '}' && nc_tk != 0)
+    while (nc_tk != '}' && nc_tk != 0) {
       stmt();
+      if (nc_error)
+        break;
+    }
     next();
   } else if (nc_tk == ';') {
     next();
@@ -801,8 +814,11 @@ void run_neuralc(const char *source) {
           }
           *++nc_e = ENT;
           *++nc_e = i - nc_loc;
-          while (nc_tk != '}' && nc_tk != 0)
+          while (nc_tk != '}' && nc_tk != 0) {
             stmt();
+            if (nc_error)
+              break;
+          }
           *++nc_e = LEV;
           nc_id = nc_sym;
           while (nc_id[Tk]) {
@@ -916,10 +932,10 @@ void run_neuralc(const char *source) {
 
     // System mappings
     else if (i == SYS_PRINTSTR) {
-      print_string((char *)sp[0], 0x0F);
+      print_string((char *)sp[1], sp[0]);
       a = 0;
     } else if (i == SYS_PRINTNUM) {
-      print_number(sp[0], 0x0E);
+      print_number(sp[1], sp[0]);
       a = 0;
     } else if (i == SYS_MALLOC) {
       a = (int)mem_alloc(*sp);

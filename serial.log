@@ -7,4 +7,25 @@
 [AGENT] No previous disk state detected. Formatting sector 10...
 [FS] Initializing NeuralFS...
 [FS] Formatting fresh filesystem...
-[AGENT TELEMETRY #1] Intent: SYSTEM_INFO (70%) matched: info
+[FAT] Probing FAT12/16 Filesystem...
+[FAT] Probe failed. Missing 0xAA55 signature.
+[AGENT TELEMETRY #1] Intent: AI_GENCODE (95%) matched: ai-code 
+[NET] Packet transmitted successfully!
+[NET] Received ARP Request. Sending Reply.
+[NET] Packet transmitted successfully!
+[AGENT TELEMETRY #2] Intent: AI_GENCODE (95%) matched: ai-code 
+[NET] Packet transmitted successfully!
+[AGENT TELEMETRY #3] Intent: AI_GENCODE (95%) matched: ai-code 
+[NET] Packet transmitted successfully!
+[AGENT TELEMETRY #4] Intent: SYSTEM_TIME (95%) matched: jam
+[AGENT TELEMETRY #5] Intent: AI_GENCODE (95%) matched: ai-code 
+[NET] Packet transmitted successfully!
+[AGENT TELEMETRY #6] Intent: AI_GENCODE (95%) matched: ai-code 
+[NET] Packet transmitted successfully!
+[AGENT TELEMETRY #7] Intent: SYSTEM_HELP (90%) matched: help
+[AGENT TELEMETRY #8] Intent: AI_HTTP (100%) matched: http_direct
+[NET] Packet transmitted successfully!
+[AGENT TELEMETRY #9] Intent: AI_GENCODE (95%) matched: ai-code 
+[NET] Packet transmitted successfully!
+[AGENT TELEMETRY #10] Intent: AI_GENCODE (95%) matched: ai-code 
+[NET] Packet transmitted successfully!

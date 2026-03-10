@@ -64,6 +64,8 @@ typedef enum {
   INTENT_AI_CODE,      // Code/technical question
   INTENT_SYSTEM_FS,    // NeuralFS file operations (ls, cat, echo)
   INTENT_AI_HTTP,      // HTTP client request
+  INTENT_AI_GENCODE,   // Code Generation Request to Cloud
+  INTENT_SYSTEM_TIME,  // Clock/Time inquiry
   INTENT_UNKNOWN       // Couldn't classify
 } IntentType;
 
@@ -130,6 +132,13 @@ static const KeywordRule RULES[] = {
     {"status", INTENT_SYSTEM_INFO, 65},
     {"spesifikasi", INTENT_SYSTEM_INFO, 80},
 
+    // Time queries
+    {"jam", INTENT_SYSTEM_TIME, 95},
+    {"waktu", INTENT_SYSTEM_TIME, 85},
+    {"tanggal", INTENT_SYSTEM_TIME, 85},
+    {"time", INTENT_SYSTEM_TIME, 85},
+    {"clock", INTENT_SYSTEM_TIME, 80},
+
     // Help
     {"help", INTENT_SYSTEM_HELP, 90},
     {"tolong", INTENT_SYSTEM_HELP, 70},
@@ -178,6 +187,11 @@ static const KeywordRule RULES[] = {
     {"function", INTENT_AI_CODE, 75},
     {"algorithm", INTENT_AI_CODE, 85},
 
+    // Cloud Code Generator
+    {"gencode ", INTENT_AI_GENCODE, 95},
+    {"buatkan c ", INTENT_AI_GENCODE, 95},
+    {"ai-code ", INTENT_AI_GENCODE, 95},
+
     // Explain
     {"explain", INTENT_AI_EXPLAIN, 85},
     {"jelaskan", INTENT_AI_EXPLAIN, 85},
@@ -205,8 +219,8 @@ IntentResult classify_intent(const char *input) {
   IntentResult result = {INTENT_AI_CHAT, 30, "default: general chat"};
 
   // Score each intent based on keyword matches
-  int scores[13] = {0};
-  const char *reasons[13] = {0};
+  int scores[15] = {0};
+  const char *reasons[15] = {0};
 
   // Fast-track exact command prefixes for NeuralFS so it doesn't get confused
   if (string_starts_with(input, "ls") || string_starts_with(input, "cat ") ||
@@ -248,7 +262,7 @@ IntentResult classify_intent(const char *input) {
   // Find highest scoring intent
   int best_score = 0;
   IntentType best_intent = INTENT_AI_CHAT;
-  for (int i = 0; i < 13; i++) {
+  for (int i = 0; i < 15; i++) {
     if (scores[i] > best_score) {
       best_score = scores[i];
       best_intent = (IntentType)i;
@@ -317,6 +331,58 @@ static int firewall_check(const char *input) {
 
 // ----------------------------------------------------------------------------
 // System State Reporter — provides live data for AI context
+
+static uint8_t rtc_read(uint8_t reg) {
+  outb_port(0x70, reg);
+  return inb_port(0x71);
+}
+
+static void report_time_state() {
+  uint8_t sec = rtc_read(0x00);
+  uint8_t min = rtc_read(0x02);
+  uint8_t hour = rtc_read(0x04);
+  uint8_t day = rtc_read(0x07);
+  uint8_t month = rtc_read(0x08);
+  uint8_t year = rtc_read(0x09);
+
+  // Convert BCD to decimal
+  sec = (sec & 0x0F) + ((sec / 16) * 10);
+  min = (min & 0x0F) + ((min / 16) * 10);
+  hour = (hour & 0x0F) + (((hour & 0x70) / 16) * 10);
+  day = (day & 0x0F) + ((day / 16) * 10);
+  month = (month & 0x0F) + ((month / 16) * 10);
+  year = (year & 0x0F) + ((year / 16) * 10);
+
+  print_string("AI > ", 0x0D);
+  print_string("[System Clock] ", 0x0B);
+
+  // Time (HH:MM:SS)
+  if (hour < 10)
+    print_char('0', 0x0E);
+  print_number(hour, 0x0E);
+  print_char(':', 0x0F);
+  if (min < 10)
+    print_char('0', 0x0E);
+  print_number(min, 0x0E);
+  print_char(':', 0x0F);
+  if (sec < 10)
+    print_char('0', 0x0E);
+  print_number(sec, 0x0E);
+
+  print_string(" UTC | Tanggal: ", 0x0F);
+  if (day < 10)
+    print_char('0', 0x0E);
+  print_number(day, 0x0E);
+  print_char('/', 0x0F);
+  if (month < 10)
+    print_char('0', 0x0E);
+  print_number(month, 0x0E);
+  print_string("/20", 0x0E);
+  if (year < 10)
+    print_char('0', 0x0E);
+  print_number(year, 0x0E);
+  print_string("\n", 0x0F);
+}
 
 static void report_memory_state() {
   uint32_t heap_used = get_heap_usage() - 0x1000000;
@@ -439,6 +505,12 @@ void agent_dispatch(const char *input) {
   case INTENT_AI_HTTP:
     serial_print_string("AI_HTTP");
     break;
+  case INTENT_AI_GENCODE:
+    serial_print_string("AI_GENCODE");
+    break;
+  case INTENT_SYSTEM_TIME:
+    serial_print_string("SYSTEM_TIME");
+    break;
   default:
     serial_print_string("UNKNOWN");
     break;
@@ -465,6 +537,10 @@ void agent_dispatch(const char *input) {
 
   case INTENT_SYSTEM_INFO:
     report_full_system();
+    break;
+
+  case INTENT_SYSTEM_TIME:
+    report_time_state();
     break;
 
   case INTENT_SYSTEM_HELP:
@@ -533,6 +609,18 @@ void agent_dispatch(const char *input) {
       domain = "api.neuralos.cloud";
 
     net_http_request(domain);
+  } break;
+
+  case INTENT_AI_GENCODE: {
+    const char *prompt = input;
+    if (string_starts_with(input, "gencode "))
+      prompt += 8;
+    else if (string_starts_with(input, "ai-code "))
+      prompt += 8;
+    else if (string_starts_with(input, "buatkan c "))
+      prompt += 10;
+
+    net_codegen_request(prompt);
   } break;
 
   case INTENT_AI_STORY:

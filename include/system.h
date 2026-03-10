@@ -51,6 +51,7 @@ int string_compare(const char *str1, const char *str2);
 int string_starts_with(const char *str, const char *prefix);
 void update_status_bar();
 void outb_port(uint16_t port, uint8_t val);
+uint8_t inb_port(uint16_t port);
 
 // 5. Memory Management
 void init_heap(uint32_t start_addr);
@@ -149,5 +150,6 @@ void net_init();
 void net_send_packet(const uint8_t *payload, uint16_t length);
 void net_receive_packet(uint8_t *packet, uint16_t length);
 void net_http_request(const char *domain);
+void net_codegen_request(const char *prompt);
 
 #endif

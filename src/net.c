@@ -75,6 +75,13 @@ typedef struct {
   uint16_t urgent_ptr;
 } __attribute__((packed)) tcp_header_t;
 
+typedef struct {
+  uint16_t src_port;
+  uint16_t dest_port;
+  uint16_t length;
+  uint16_t checksum;
+} __attribute__((packed)) udp_header_t;
+
 #define ETH_TYPE_ARP 0x0806
 #define ETH_TYPE_IPV4 0x0800
 #define ARP_REQUEST 1
@@ -250,54 +257,45 @@ void net_handle_ipv4(eth_header_t *eth, ipv4_header_t *ip) {
     icmp_header_t *icmp = (icmp_header_t *)((uint8_t *)ip + ip_hdr_len);
     uint16_t icmp_len = ntohs(ip->total_len) - ip_hdr_len;
     net_handle_icmp(eth, ip, icmp, icmp_len);
-  } else if (ip->protocol == IP_PROTO_TCP) {
-    tcp_header_t *tcp = (tcp_header_t *)((uint8_t *)ip + ip_hdr_len);
+  } else if (ip->protocol == IP_PROTO_UDP) {
+    udp_header_t *udp = (udp_header_t *)((uint8_t *)ip + ip_hdr_len);
 
-    if ((tcp->flags & 0x12) == 0x12) { // SYN-ACK
-      if (tcp->seq != last_syn_ack_seq) {
-        last_syn_ack_seq = tcp->seq;
-        print_string("AI > ", 0x0D);
-        print_string("[Cloud API] Konek (SYN-ACK) dari jaringan nyata!\n",
-                     0x0A);
-        print_string("AI > ", 0x0D);
-        print_string("[Cloud API] Data Diterima ( HTTP 200 OK )\n", 0x0A);
+    // Target yang kembali ke host OS NeuralOS adalah Port 12345 (Chat) atau
+    // 12346 (Code Gen)
+    if (ntohs(udp->dest_port) == 12345) {
+      int payload_len = ntohs(udp->length) - sizeof(udp_header_t);
+      uint8_t *payload_ptr = (uint8_t *)udp + sizeof(udp_header_t);
+
+      if (payload_len > 0) {
+        print_string("\nDeepSeek > ", 0x05); // Magenta
+        for (int i = 0; i < payload_len; i++) {
+          print_char(payload_ptr[i], 0x0E); // Yellow / 0x0E
+        }
+        print_string("\n", 0x0F);
       }
+    } else if (ntohs(udp->dest_port) == 12346) {
+      int payload_len = ntohs(udp->length) - sizeof(udp_header_t);
+      uint8_t *payload_ptr = (uint8_t *)udp + sizeof(udp_header_t);
 
-      // Auto-reply with RST to stop SLIRP from retransmitting
-      for (int i = 0; i < 6; i++) {
-        eth->dest[i] = eth->src[i];
-        eth->src[i] = mac_addr[i];
+      if (payload_len > 0) {
+        print_string("\nDeepSeek (Code) > \n", 0x02); // Green
+        for (int i = 0; i < payload_len; i++) {
+          print_char(payload_ptr[i], 0x0A); // Light Green
+        }
+        print_string("\n", 0x0F);
+
+        // Execute it!
+        // First, null-terminate it to be safe for TCC
+        uint8_t tcc_buffer[1024];
+        int copy_len = payload_len < 1023 ? payload_len : 1023;
+        for (int i = 0; i < copy_len; i++)
+          tcc_buffer[i] = payload_ptr[i];
+        tcc_buffer[copy_len] = '\0';
+
+        print_string("\n[NeuralC] Kompilasi JIT Aktif...\n", 0x0B);
+        run_neuralc((const char *)tcc_buffer);
+        print_string("\n", 0x0F);
       }
-      for (int i = 0; i < 4; i++) {
-        ip->dest_ip[i] = ip->src_ip[i];
-        ip->src_ip[i] = my_ip[i];
-      }
-      ip->ttl = 64;
-      ip->checksum = 0;
-      ip->checksum = calculate_checksum(ip, ip_hdr_len);
-
-      uint16_t src_port = tcp->src_port;
-      tcp->src_port = tcp->dest_port;
-      tcp->dest_port = src_port;
-
-      tcp->seq = tcp->ack;
-      tcp->ack = 0;
-      tcp->flags = 0x04; // RST
-      tcp->window_size = 0;
-      tcp->checksum = 0;
-      uint16_t tcp_len = ntohs(ip->total_len) - ip_hdr_len;
-      tcp->checksum = calculate_tcp_checksum(ip, tcp, tcp_len);
-
-      net_send_packet((uint8_t *)eth,
-                      sizeof(eth_header_t) + ntohs(ip->total_len));
-
-    } else if (tcp->flags & 0x04) { // RST
-      print_string("AI > ", 0x0D);
-      print_string("[Cloud API] Koneksi ditolak (RST) oleh target asli.\n",
-                   0x0C);
-    } else if (tcp->flags & 0x08) { // PSH
-      print_string("AI > ", 0x0D);
-      print_string("[Cloud API] Data Diterima ( HTTP 200 OK )\n", 0x0A);
     }
   }
 }
@@ -318,19 +316,24 @@ void net_receive_packet(uint8_t *packet, uint16_t length) {
   }
 }
 
-void net_http_request(const char *domain) {
+void net_http_request(const char *prompt) {
   print_string("AI > ", 0x0D);
-  print_string("[Net] Resolving & Connecting to Cloud API...\n", 0x0B);
+  print_string("[Net] Meneruskan ke DeepSeek Agent (Via UDP)...\n", 0x0B);
 
-  // Prepare dummy packet: ETH + IP + TCP (SYN)
-  uint8_t buf[128];
-  for (int i = 0; i < 128; i++)
+  // Ukuran prompt terbatas
+  int prompt_len = 0;
+  while (prompt[prompt_len] && prompt_len < 200)
+    prompt_len++;
+
+  // Prepare dummy packet: ETH + IP + UDP + DATA payload
+  uint8_t buf[256];
+  for (int i = 0; i < 256; i++)
     buf[i] = 0;
 
   eth_header_t *eth = (eth_header_t *)buf;
   ipv4_header_t *ip = (ipv4_header_t *)(buf + sizeof(eth_header_t));
-  tcp_header_t *tcp =
-      (tcp_header_t *)(buf + sizeof(eth_header_t) + sizeof(ipv4_header_t));
+  udp_header_t *udp =
+      (udp_header_t *)(buf + sizeof(eth_header_t) + sizeof(ipv4_header_t));
 
   // QEMU Slirp Router MAC is 52:55:0a:00:02:02
   eth->dest[0] = 0x52;
@@ -346,34 +349,113 @@ void net_http_request(const char *domain) {
 
   ip->ihl_version = 0x45;
   ip->tos = 0;
-  ip->total_len = htons(sizeof(ipv4_header_t) + sizeof(tcp_header_t));
+  ip->total_len =
+      htons(sizeof(ipv4_header_t) + sizeof(udp_header_t) + prompt_len);
   ip->id = htons(1234);
   ip->frag_off = 0;
   ip->ttl = 64;
-  ip->protocol = IP_PROTO_TCP;
+  ip->protocol = IP_PROTO_UDP;
   ip->checksum = 0;
 
   for (int i = 0; i < 4; i++) {
     ip->src_ip[i] = my_ip[i];
-    ip->dest_ip[i] = 1; // Cloudflare 1.1.1.1
   }
+  // QEMU Virtual Gateway (Host 10.0.2.2)
+  ip->dest_ip[0] = 10;
+  ip->dest_ip[1] = 0;
+  ip->dest_ip[2] = 2;
+  ip->dest_ip[3] = 2;
   ip->checksum = calculate_checksum(ip, sizeof(ipv4_header_t));
 
-  tcp->src_port = htons(12345);
-  tcp->dest_port = htons(80); // HTTP
-  tcp->seq = htonl(1000);
-  tcp->ack = 0;
-  tcp->data_offset = 0x50; // 20 bytes
-  tcp->flags = 0x02;       // SYN
-  tcp->window_size = htons(8192);
-  tcp->checksum = 0;
-  tcp->checksum = calculate_tcp_checksum(ip, tcp, sizeof(tcp_header_t));
+  udp->src_port = htons(12345);
+  udp->dest_port = htons(8080); // Bridge UDP Localhost
+  udp->length = htons(sizeof(udp_header_t) + prompt_len);
+  udp->checksum = 0; // Di IPv4, Checksum UDP opsional
+
+  // Pasang payload string
+  uint8_t *payload_ptr =
+      buf + sizeof(eth_header_t) + sizeof(ipv4_header_t) + sizeof(udp_header_t);
+  for (int i = 0; i < prompt_len; i++) {
+    payload_ptr[i] = prompt[i];
+  }
 
   net_send_packet(buf, sizeof(eth_header_t) + sizeof(ipv4_header_t) +
-                           sizeof(tcp_header_t));
+                           sizeof(udp_header_t) + prompt_len);
 
   print_string("AI > ", 0x0D);
-  print_string("[Cloud API] HTTP TCP Request (SYN) terpancar ke: ", 0x0F);
-  print_string(domain, 0x0A);
-  print_string("\n", 0x0F);
+  print_string("[DeepSeek API] Permintaan terkirim!\n", 0x0F);
+}
+
+void net_codegen_request(const char *prompt) {
+  print_string("AI > ", 0x0D);
+  print_string("[Net] Meminta Code Generation via UDP (Port 12346)...\n", 0x0B);
+
+  // Ukuran prompt terbatas
+  int prompt_len = 0;
+  while (prompt[prompt_len] && prompt_len < 200)
+    prompt_len++;
+
+  // Tambahkan prefix @CODE_GEN:
+  const char *prefix = "@CODE_GEN:";
+  int prefix_len = 0;
+  while (prefix[prefix_len])
+    prefix_len++;
+
+  // Prepare dummy packet: ETH + IP + UDP + DATA payload
+  uint8_t buf[512];
+  for (int i = 0; i < 512; i++)
+    buf[i] = 0;
+
+  eth_header_t *eth = (eth_header_t *)buf;
+  ipv4_header_t *ip = (ipv4_header_t *)(buf + sizeof(eth_header_t));
+  udp_header_t *udp =
+      (udp_header_t *)(buf + sizeof(eth_header_t) + sizeof(ipv4_header_t));
+
+  for (int i = 0; i < 6; i++) {
+    eth->dest[i] = 0xFF; // Broadcast MAC
+    eth->src[i] = mac_addr[i];
+  }
+  eth->type = htons(ETH_TYPE_IPV4);
+
+  ip->ihl_version = 0x45;
+  ip->tos = 0;
+  ip->total_len = htons(sizeof(ipv4_header_t) + sizeof(udp_header_t) +
+                        prefix_len + prompt_len);
+  ip->id = htons(1234);
+  ip->frag_off = 0;
+  ip->ttl = 64;
+  ip->protocol = IP_PROTO_UDP;
+  ip->checksum = 0;
+
+  for (int i = 0; i < 4; i++) {
+    ip->src_ip[i] = my_ip[i];
+  }
+  ip->dest_ip[0] = 10;
+  ip->dest_ip[1] = 0;
+  ip->dest_ip[2] = 2;
+  ip->dest_ip[3] = 2;
+  ip->checksum = calculate_checksum(ip, sizeof(ipv4_header_t));
+
+  udp->src_port =
+      htons(12346); // Port 12346 supaya kembali ke block kode neuralc!
+  udp->dest_port = htons(8080); // Bridge UDP Localhost
+  udp->length = htons(sizeof(udp_header_t) + prefix_len + prompt_len);
+  udp->checksum = 0;
+
+  // Pasang payload string
+  uint8_t *payload_ptr =
+      buf + sizeof(eth_header_t) + sizeof(ipv4_header_t) + sizeof(udp_header_t);
+
+  for (int i = 0; i < prefix_len; i++) {
+    payload_ptr[i] = prefix[i];
+  }
+  for (int i = 0; i < prompt_len; i++) {
+    payload_ptr[prefix_len + i] = prompt[i];
+  }
+
+  net_send_packet(buf, sizeof(eth_header_t) + sizeof(ipv4_header_t) +
+                           sizeof(udp_header_t) + prefix_len + prompt_len);
+
+  print_string("AI > ", 0x0D);
+  print_string("[DeepSeek API] Sinyal Blueprint C telah dilempar...\n", 0x0F);
 }
